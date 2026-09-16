@@ -8,14 +8,14 @@ Open `index.html` in any modern browser (keep `content.js` beside it). No build 
 
 ## Built-in curriculum (no key, no account)
 
-Like Brilliant, the core content is authored, not generated: `content.js` carries 31 curated lessons across 6 subjects, all fully offline —
+Like Brilliant, the core content is authored, not generated: `content.js` carries **49 curated lessons across 6 subjects**, each running from fundamentals to an expert track, all fully offline —
 
-- **JavaScript, by hand** — variables, arrays, debugging, async, objects, small programs (with real in-browser code grading)
-- **Web pages from scratch** — HTML structure, links & images, CSS selectors, the box model, flexbox, responsive design
-- **Websites that work** — visual hierarchy, type & color, copywriting, domains/hosting/going live, site maintenance
-- **Found on Google** — how search works, keywords, on-page SEO, backlinks, measuring
-- **Numbers you can use** — percentages, ratios, compound growth, probability, averages (with interactive graphs)
-- **Clear thinking** — logical fallacies, correlation vs causation, Fermi estimation, base rates & risk
+- **JavaScript, by hand** (9) — variables, arrays, debugging, async, objects, small programs, then closures, reduce, and immutability (with real in-browser code grading)
+- **Web pages from scratch** (9) — HTML structure, links & images, CSS selectors, the box model, flexbox, responsive design, then CSS Grid, design tokens, and accessibility
+- **Websites that work** (8) — visual hierarchy, type & color, copywriting, going live, maintenance, then conversion, mini design systems, and performance
+- **Found on Google** (8) — how search works, keywords, on-page SEO, backlinks, measuring, then content clusters, technical SEO, and local search
+- **Numbers you can use** (8) — percentages, ratios, compound growth, probability, averages, then expected value, spread, and real-vs-nominal money math (with interactive graphs)
+- **Clear thinking** (7) — fallacies, correlation vs causation, Fermi estimation, base rates, then cognitive biases, incentives, and Bayesian updating
 
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions — every question answerable from what came above it. Typing a topic checks the library first: "website design" or "flexbox" opens the curated lesson instantly; the AI only gets called for subjects the library doesn't cover. MCQ options are shuffled at launch so answers have no home position.
 
@@ -42,4 +42,4 @@ All progress, preferences, mastery and the review deck persist locally (host key
 
 `concept` · `worked` (a problem solved with you, one revealed step at a time — you learn the method before being tested on it) · `mcq` · `numeric` · `order` · `output` (predict what code prints — it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve)
 
-All 31 curated lessons and 6 courses work fully offline with no API key.
+All 49 curated lessons and 6 courses work fully offline with no API key.
