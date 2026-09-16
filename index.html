@@ -927,11 +927,40 @@ function Prexis() {
       .slice(-3)
       .map((c) => c.step.prompt || c.step.heading)
       .filter(Boolean);
-    if (!sk && !missed.length) return "";
+    const recent = (learner.history || []).slice(0, 5).map((h) => h.t);
+    if (!sk && !missed.length && !recent.length) return "";
     let note = "";
     if (sk) note += `The learner's recent accuracy on this subject is ${Math.round(sk.ema * 100)}% over ${sk.n} sessions. Pitch difficulty accordingly. `;
+    if (recent.length) note += `They recently completed lessons titled: ${recent.join("; ")}. Do NOT repeat that material — go further or take a genuinely new angle. `;
     if (missed.length) note += `They recently got these wrong: ${missed.join(" / ")}. Reteach those ideas from a fresh angle before testing them again.`;
     return note.trim();
+  };
+
+  /* Progression: a matched subject should not replay lesson 1 forever.
+     Serve the preferred lesson if it's new, else the first unfinished
+     lesson in that course, else the learner's weakest one to redo. */
+  const nextInCourse = (courseId, preferred) => {
+    const course = CONTENT.courses.find((c) => c.id === courseId);
+    if (!course) return preferred;
+    const prog = learner.courseProgress || {};
+    const all = [];
+    course.units.forEach((u, ui) => u.lessons.forEach((_, li) => all.push({ courseId, u: ui, l: li, key: courseId + ":" + ui + ":" + li })));
+    if (!prog[courseId + ":" + preferred.u + ":" + preferred.l]) return preferred;
+    const fresh = all.find((x) => !prog[x.key]);
+    if (fresh) return fresh;
+    const ratio = (s) => { const m = /^(\d+)\/(\d+)$/.exec(s || ""); return m && Number(m[2]) ? Number(m[1]) / Number(m[2]) : 1; };
+    return all.reduce((worst, x) => (ratio(prog[x.key]) < ratio(prog[worst.key]) ? x : worst), all[0]);
+  };
+
+  /* Launch a curated lesson WITH its course identity, so completion is
+     recorded and the next visit to this subject moves forward. */
+  const launchFromLibrary = (courseId, u, l, topicStr) => {
+    const pick = nextInCourse(courseId, { courseId, u, l });
+    const ls = contentLessonAt(pick.courseId, pick.u, pick.l);
+    if (!ls) return false;
+    setActiveCourseId(pick.courseId);
+    launchLesson({ title: ls.title, steps: deep(ls.steps) }, { courseId: pick.courseId, u: pick.u, l: pick.l }, topicStr);
+    return true;
   };
 
   const startQuick = async (t) => {
@@ -947,8 +976,14 @@ function Prexis() {
     const match = findLocalLesson(chosen);
     const threshold = aiKey().trim() ? 0.99 : 0.5;
     if (match && match.score >= threshold) {
-      const ls = contentLessonAt(match.courseId, match.u, match.l);
-      if (ls) { launchLesson({ title: ls.title, steps: deep(ls.steps) }, null, chosen); return; }
+      if (launchFromLibrary(match.courseId, match.u, match.l, chosen)) return;
+    }
+    if (!aiKey().trim()) {
+      // Weak match still beats nothing; otherwise say so honestly instead
+      // of serving the same generic filler lesson every time.
+      if (match && match.score >= 0.34 && launchFromLibrary(match.courseId, match.u, match.l, chosen)) return;
+      setErr(`“${chosen}” isn't in the built-in library yet. Add an API key in Studio and the AI will write a fresh lesson for it — or pick a library topic below.`);
+      return;
     }
     setScreen("loading");
     try {
@@ -963,19 +998,17 @@ ${lessonSchema}`,
           { maxTokens: 2500 }
         );
       }
-      if (!parsed) parsed = localLesson(chosen, lvl);
       if (!parsed || !Array.isArray(parsed.steps) || parsed.steps.length === 0) throw new Error("bad shape");
       launchLesson(parsed, null, chosen);
     } catch (e) {
       console.error(e);
-      try {
-        launchLesson(localLesson(chosen, lvl), null, chosen);
-      } catch (e2) {
-        setErr(e.message === "NO_KEY"
-          ? "Add an API key in Studio, or pick a built-in topic."
-          : aiName() + " couldn't build that. " + (e.message || "Try again."));
-        setScreen("home");
-      }
+      // AI failed: a related library lesson beats an error, but never
+      // serve unrelated filler — it reads as the app repeating itself.
+      if (match && match.score >= 0.34 && launchFromLibrary(match.courseId, match.u, match.l, chosen)) return;
+      setErr(e.message === "NO_KEY"
+        ? "Add an API key in Studio, or pick a built-in topic."
+        : aiName() + " couldn't build that. " + (e.message || "Try again."));
+      setScreen("home");
     }
   };
 
@@ -1465,10 +1498,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 {CONTENT.quickPicks.map((q) => (
                   <button
                     key={q.label}
-                    onClick={() => {
-                      const ls = contentLessonAt(q.course, q.u, q.l);
-                      if (ls) launchLesson({ title: ls.title, steps: deep(ls.steps) }, null, q.topic || q.label);
-                    }}
+                    onClick={() => launchFromLibrary(q.course, q.u, q.l, q.topic || q.label)}
                     className="chip"
                     style={{ fontSize: 13, padding: "6px 10px" }}
                   >
