@@ -259,10 +259,11 @@ const parseJsonLoose = (text) => {
   return JSON.parse(clean);
 };
 
-async function askGrok(prompt, { key, model, maxTokens } = {}) {
+async function askGrok(prompt, { key, model, maxTokens, signal } = {}) {
   if (!key) throw new Error("NO_KEY");
   const res = await fetch(XAI_URL, {
     method: "POST",
+    signal,
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + key,
@@ -294,10 +295,11 @@ async function askGrok(prompt, { key, model, maxTokens } = {}) {
   return parseJsonLoose(text);
 }
 
-async function askClaude(prompt, { key, model, maxTokens } = {}) {
+async function askClaude(prompt, { key, model, maxTokens, signal } = {}) {
   if (!key) throw new Error("NO_KEY");
   const res = await fetch(ANTHROPIC_URL, {
     method: "POST",
+    signal,
     headers: {
       "Content-Type": "application/json",
       "x-api-key": key,
@@ -634,6 +636,106 @@ function localLesson(topic, level) {
   return { title: slug, steps };
 }
 
+/* Keyless course lessons: one distinct lesson per outline slot, written
+   around the subject with clean grammar. Code slots teach real JavaScript
+   (runnable, so verification actually checks them); other slots teach the
+   study method applied to the subject. Unknown titles fall back to the
+   generic quick lesson. */
+function localCourseLesson(subject, lessonTitle, level) {
+  const S = subject.trim() || "this subject";
+  const T = (lessonTitle || "").trim().toLowerCase();
+  const c = (heading, body, code) => (code ? { type: "concept", heading, body, code } : { type: "concept", heading, body });
+  const BY_TITLE = {
+    "names and values": [
+      c("A name points at a value", "Every program is names pointing at values. const fixes the pointer. let allows it to move. Read any confusing line by asking two questions: what value, and which name holds it."),
+      { type: "output", prompt: "What does this print?", code: "const a = 3;\nlet b = a;\nb = b + 1;\nconsole.log(b);", expect: "4", explain: "b copied the value 3, then moved to 4. a still holds 3, untouched." },
+      { type: "mcq", prompt: "const list = [1, 2]; list.push(3); Does this run?", options: ["No, const forbids all change", "Yes, const fixes the name, not the contents", "Only in older browsers", "Only if list is empty"], answer: 1, explain: "const stops rebinding the name. The array it points at can still change inside." },
+      { type: "code", prompt: "Write a function double(n) that returns n times 2.", starter: "function double(n) {\n  \n}", tests: [{ call: "double(4)", expect: 8 }, { call: "double(0)", expect: 0 }, { call: "double(-3)", expect: -6 }], solution: "function double(n) {\n  return n * 2;\n}", explain: "Return the result. Printing it is not the same as returning it." },
+      c("Keep this", "When code surprises you, trace the names. Ninety percent of beginner bugs are a name holding a different value than you assumed."),
+    ],
+    "control flow": [
+      c("Programs choose and repeat", "Two moves cover most logic: if chooses a branch, loops repeat one. Every branch should be one you can say out loud as a sentence."),
+      { type: "output", prompt: "What does this print?", code: "const n = 7;\nif (n > 5) {\n  console.log(\"big\");\n} else {\n  console.log(\"small\");\n}", expect: "big", explain: "7 > 5 is true, so only the first branch runs." },
+      { type: "mcq", prompt: "A loop that never ends is usually caused by…", options: ["Too many iterations requested", "A condition that never becomes false", "Using let instead of const", "A missing semicolon"], answer: 1, explain: "The loop keeps going while its condition holds. If nothing inside moves the condition toward false, it never stops." },
+      { type: "code", prompt: "Write sign(n): return 1 for positive, -1 for negative, 0 for zero.", starter: "function sign(n) {\n  \n}", tests: [{ call: "sign(9)", expect: 1 }, { call: "sign(-2)", expect: -1 }, { call: "sign(0)", expect: 0 }], solution: "function sign(n) {\n  if (n > 0) return 1;\n  if (n < 0) return -1;\n  return 0;\n}", explain: "Early returns keep each branch flat and readable." },
+      c("Keep this", "Before writing a condition, say the rule in plain words. If you cannot say it, you cannot code it."),
+    ],
+    "small functions": [
+      c("One job per function", "A function should do one thing you can name with a verb. If naming it takes an \"and\", split it. Small functions are how big programs stay readable."),
+      { type: "output", prompt: "What does this print?", code: "function shout(w) {\n  return w.toUpperCase() + \"!\";\n}\nconsole.log(shout(\"go\"));", expect: "GO!", explain: "The call passes \"go\" in, the return hands \"GO!\" back, and console.log prints it." },
+      { type: "mcq", prompt: "What does a function without a return statement give back?", options: ["0", "An empty string", "undefined", "The last variable used"], answer: 2, explain: "No return means undefined. Forgetting this is a classic source of silent bugs." },
+      { type: "code", prompt: "Write greet(name) that returns \"Hi, \" followed by the name.", starter: "function greet(name) {\n  \n}", tests: [{ call: "greet(\"Sam\")", expect: "Hi, Sam" }, { call: "greet(\"\")", expect: "Hi, " }], solution: "function greet(name) {\n  return \"Hi, \" + name;\n}", explain: "Build the new string and return it. The caller decides what to do with it." },
+      c("Keep this", "Write the call you wish existed, then write the function that makes it true."),
+    ],
+    structures: [
+      c("Arrays hold order, objects hold names", "An array is a numbered shelf: first, second, third. An object is a labeled drawer: name, price, done. Pick by asking whether order or labels matter more."),
+      { type: "output", prompt: "What does this print?", code: "const items = [\"pen\", \"ink\", \"pad\"];\nconsole.log(items.length);", expect: "3", explain: "length counts the entries. Indexes run 0, 1, 2." },
+      { type: "mcq", prompt: "You need each product's name and price together. Reach for…", options: ["Two separate arrays kept in sync", "An array of objects", "One long string", "Numbered variables like price1, price2"], answer: 1, explain: "An array of objects keeps each record whole and the collection ordered. Parallel arrays drift out of sync." },
+      { type: "code", prompt: "Write first(arr) that returns the first element of an array.", starter: "function first(arr) {\n  \n}", tests: [{ call: "first([5, 6, 7])", expect: 5 }, { call: "first([\"a\"])", expect: "a" }], solution: "function first(arr) {\n  return arr[0];\n}", explain: "Index 0 is the front. Off-by-one errors start with forgetting this." },
+      c("Keep this", "Model the data first. Code that fights its own data shape stays buggy no matter how careful you are."),
+    ],
+    "errors you can read": [
+      c("Errors are messages, not verdicts", "An error names the problem, the file, and the line. Read it top to bottom before touching code. The message is usually right and usually literal."),
+      { type: "mcq", prompt: "\"TypeError: cannot read properties of undefined (reading 'name')\" means…", options: ["The variable name is misspelled", "Something before .name is undefined", "The name property is empty", "JavaScript is out of memory"], answer: 1, explain: "The thing you wrote .name on does not exist yet. Find why it is undefined; the property is innocent." },
+      { type: "output", prompt: "What does this print?", code: "const user = { name: \"Ada\" };\nconsole.log(user.age === undefined);", expect: "true", explain: "Missing properties read as undefined rather than crashing. The crash comes when you read a property OF undefined." },
+      { type: "order", prompt: "Order a calm debugging pass.", items: ["Read the full error message", "Find the named line", "Check what each value actually is", "Change one thing and rerun"], explain: "One change per rerun. Shotgun edits destroy the information each test gives you.", codeItems: false },
+      c("Keep this", "The bug is always real and always literal. The error message is your first witness, not your enemy."),
+    ],
+    "a tiny project": [
+      c("Ship something whole", "A ten-line program you finished teaches more than a tutorial you watched. Small scope, real output, no framework. This lesson builds one: a scorekeeper."),
+      { type: "code", prompt: "Write total(scores) that returns the sum of an array of numbers.", starter: "function total(scores) {\n  \n}", tests: [{ call: "total([2, 3, 5])", expect: 10 }, { call: "total([])", expect: 0 }, { call: "total([7])", expect: 7 }], solution: "function total(scores) {\n  let sum = 0;\n  for (const s of scores) sum += s;\n  return sum;\n}", explain: "Start at zero, add each entry. reduce does the same in one line once this feels boring." },
+      { type: "output", prompt: "What does this print?", code: "function best(scores) {\n  return Math.max(...scores);\n}\nconsole.log(best([4, 9, 2]));", expect: "9", explain: "The spread hands each entry to Math.max as its own argument." },
+      { type: "mcq", prompt: "The fastest way to grow after a tiny project is…", options: ["Start a much bigger project", "Add one small feature to this one", "Rewrite it in a framework", "Read more tutorials first"], answer: 1, explain: "Extending working code teaches integration, the skill tutorials cannot give you." },
+      c("Keep this", "Done and small beats ambitious and abandoned. Every real programmer's history is a pile of tiny finished things."),
+    ],
+    "the one idea": [
+      c("Find the load-bearing idea", `Every subject has one idea holding up the rest. For ${S}, your first job is to find it: the sentence an expert would rescue if they could keep only one. Everything after this lesson hangs off that sentence.`),
+      { type: "mcq", prompt: `You have 20 minutes for a first pass at ${S}. Spend it on…`, options: ["Collecting every term you will eventually need", "One core idea, used on one real example", "The history of the field", "Choosing the best tools first"], answer: 1, explain: "An idea you used once is yours. Twenty collected terms decay by tomorrow." },
+      { type: "numeric", prompt: "You retain about 20% of what you read once and about 80% of what you use. You study 10 concepts by reading and 2 by using them. Roughly how many stick? (whole number)", answer: 4, tolerance: 1, explain: "10 × 0.2 + 2 × 0.8 is 3.6, call it 4. Using beats covering, by a wide margin." },
+      { type: "order", prompt: "Order a first session that sticks.", items: ["State the core idea in one sentence", "Apply it to one concrete example", "Explain what surprised you", "Pick the next smallest question"], explain: "Statement, use, reflection, next step. That loop compounds; passive coverage does not.", codeItems: false },
+      c("Keep this", `Write the one sentence for ${S} now, in your own words. Wrong is fine. You will sharpen it every lesson from here.`),
+    ],
+    "a worked example": [
+      c("Watch one problem solved", `The fastest way into ${S} is watching one real problem worked start to finish, then redoing it from memory. This lesson walks that method.`),
+      { type: "worked", heading: "The redo method", problem: `You found a solid worked example for ${S}. How do you turn it into skill instead of a nice read?`, steps: ["Read it once, start to finish, without notes. You are mapping the shape, not memorizing.", "Cover the solution and redo it from the problem statement alone. Struggle is the point.", "Compare your attempt line by line. Each difference is a gap with a name.", "Redo just the gap tomorrow. A named gap closed beats a full rereading."], takeaway: "A worked example is a workout you copy, not an article you read." },
+      { type: "mcq", prompt: "Halfway through redoing an example you get stuck. Best move?", options: ["Peek at the whole solution and continue reading", "Peek at only the next line, then cover it again", "Abandon it for an easier example", "Start over from the top"], answer: 1, explain: "The smallest peek that unblocks you keeps the retrieval work yours." },
+      { type: "numeric", prompt: "Reading an example takes 5 minutes. Redoing it takes 15. You have one hour. How many examples can you fully read and redo?", answer: 3, tolerance: 0, explain: "20 minutes each, so 3. Three redone beats twelve skimmed." },
+      c("Keep this", `Collect two good worked examples for ${S} and run the redo method on both this week.`),
+    ],
+    "common mistakes": [
+      c("Mistakes are the syllabus", `Beginners in ${S} mostly make the same handful of errors. Learning them by name is cheaper than making each one slowly yourself.`),
+      { type: "mcq", prompt: "The most expensive beginner mistake in any field is…", options: ["Practicing fundamentals too long", "Skipping fundamentals to imitate expert output", "Asking basic questions", "Using beginner-grade tools"], answer: 1, explain: "Copying expert results without the base skips the layer everything else stands on. It reads as progress and compounds as debt." },
+      { type: "order", prompt: "Order these habits from most to least damaging.", items: ["Never checking your work against a source of truth", "Practicing only what already feels easy", "Studying in rare long marathons", "Keeping messy notes"], explain: "No feedback loop is fatal. Comfort practice stalls you. Cramming fades. Messy notes are survivable.", codeItems: false },
+      { type: "numeric", prompt: "A mistake caught in review costs 2 minutes. Uncaught, it costs 30 at the end. Reviewing catches 5 mistakes. Minutes saved?", answer: 140, tolerance: 0, explain: "5 × 30 is 150 lost, versus 5 × 2 spent. 150 minus 10 is 140. Early checks are cheap insurance." },
+      c("Keep this", `Keep a mistake log for ${S}: date, error, one-line rule that prevents it. Ten entries in, patterns appear.`),
+    ],
+    "a short drill": [
+      c("Drills isolate one motion", `A drill takes one small piece of ${S} and repeats it until it is automatic. Short, focused, scored. Ten minutes of drill beats an hour of general review.`),
+      { type: "numeric", prompt: "You drill 10 minutes a day for 6 days a week. Minutes of focused practice in 4 weeks?", answer: 240, tolerance: 0, explain: "10 × 6 × 4 is 240. Four hours of pure reps, gathered in slices you will actually do." },
+      { type: "order", prompt: "Order one clean drill cycle.", items: ["Pick one narrow sub-skill", "Set a 10 minute timer", "Do reps and count your misses", "Log the score for next time"], explain: "Narrow, timed, scored, logged. The score is what turns repetition into progress you can see.", codeItems: false },
+      { type: "mcq", prompt: "Your drill scores stop improving for a week. You should…", options: ["Double the drill time", "Make the drill slightly harder or faster", "Switch subjects entirely", "Keep going unchanged for a month"], answer: 1, explain: "A plateau means the drill stopped challenging you. Raise the difficulty a notch; do not just add volume." },
+      c("Keep this", `Design one 10 minute drill for ${S} tonight. If you cannot score it, narrow it until you can.`),
+    ],
+    "transfer problem": [
+      c("Use it somewhere new", `Real knowledge of ${S} shows up when the problem does not look like the practice. Transfer is the test that matters, and it can be practiced deliberately.`),
+      { type: "mcq", prompt: "The best sign you have actually learned an idea is…", options: ["You can recite its definition", "You recognized it inside an unfamiliar problem", "You highlighted it twice", "You can name who invented it"], answer: 1, explain: "Recognition in the wild is the whole game. Definitions are the entry ticket, not the skill." },
+      { type: "numeric", prompt: "Solving familiar problems, you succeed 9 times in 10. On novel ones, 6 in 10. Out of 20 novel problems, how many do you expect to solve?", answer: 12, tolerance: 0, explain: "20 × 0.6 is 12. The gap between 9 in 10 and 6 in 10 is exactly the transfer gap this lesson attacks." },
+      { type: "order", prompt: "Order an attack on an unfamiliar problem.", items: ["Restate the problem in your own words", "Ask which known idea has this shape", "Try the mapping on a small piece", "Solve fully, then check the fit"], explain: "Match the shape before the method. Forcing a favorite tool onto every problem is transfer's biggest enemy.", codeItems: false },
+      c("Keep this", `Once a week, hunt one problem that uses ${S} in a setting you have never practiced. That hunt is the curriculum.`),
+    ],
+    "teach it back": [
+      c("Teaching is the final exam", `If you can explain a piece of ${S} to a beginner without hiding behind jargon, you own it. Where your explanation stalls is exactly where your understanding does.`),
+      { type: "order", prompt: "Order the teach-back method.", items: ["Write the idea as if for a smart 12 year old", "Mark every spot where you reached for jargon", "Relearn just those spots", "Rewrite the explanation simpler"], explain: "Jargon is where understanding hides. Each marked word is a gap with an address.", codeItems: false },
+      { type: "mcq", prompt: "While explaining, you catch yourself saying \"it just works that way\". That phrase is…", options: ["A fine simplification for beginners", "The exact location of your own gap", "Proof the topic is too advanced", "A sign to change examples"], answer: 1, explain: "\"It just works\" marks the edge of your map. That is where to study next, and finding it is the method working." },
+      { type: "numeric", prompt: "Your first explanation used 300 words. After two rewrites it is 40% shorter. How many words now?", answer: 180, tolerance: 0, explain: "300 × 0.6 is 180. Shorter and still true means you found the actual structure." },
+      c("Keep this", `Explain one piece of ${S} out loud today to a person, a pet, or a wall. The stall points are your syllabus for tomorrow.`),
+    ],
+  };
+  const steps = BY_TITLE[T];
+  if (!steps) return localLesson(subject, level);
+  return { title: lessonTitle, steps: steps.map((st) => ({ ...st })) };
+}
+
 async function verifyLesson(gen) {
   let flagged = 0;
   for (const s of gen.steps) {
@@ -932,6 +1034,8 @@ function Prexis() {
   const [genQueue, setGenQueue] = useState([]);
   const [genErrors, setGenErrors] = useState({});
   const genCancelRef = useRef(false);
+  const genAbortRef = useRef(null);
+  const [genProgress, setGenProgress] = useState(null);
   const [expandedId, setExpandedId] = useState("core-js");
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -1443,6 +1547,7 @@ Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty build
   };
 
   const generateOne = async (courseId, u, l) => {
+    genCancelRef.current = false;
     const course = libRef.current.courses.find((c) => c.id === courseId);
     if (!course) return false;
     const unit = course.units[u];
@@ -1456,6 +1561,8 @@ Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty build
     setGenState({ courseId, u, l, phase: "writing" });
     // local generation is near-instant; hold each phase long enough to read
     if (!aiKey().trim()) await sleep(450);
+    const ctrl = new AbortController();
+    genAbortRef.current = ctrl;
     try {
       let gen;
       if (aiKey().trim()) {
@@ -1467,10 +1574,10 @@ Earlier lessons already covered: ${prior.join("; ") || "none"}. Build on them, d
 ${ctx ? ctx + "\n" : ""}Respond with ONLY valid JSON. No markdown fences, no text before or after. Under 700 words.
 Schema: {"title":"${lessonTitle}","steps":[...]}
 ${lessonSchema}`,
-          { maxTokens: 2500 }
+          { maxTokens: 2500, signal: ctrl.signal }
         );
       } else {
-        gen = localLesson(course.subject || course.title, course.level);
+        gen = localCourseLesson(course.subject || course.title, lessonTitle, course.level);
       }
       if (!gen || !Array.isArray(gen.steps) || gen.steps.length === 0) throw new Error("bad shape");
       tidyLesson(gen);
@@ -1482,6 +1589,7 @@ ${lessonSchema}`,
 
       const graded = gen.steps.map((s, i) => ({ s, i })).filter((x) => x.s.type === "mcq" || x.s.type === "numeric");
       if (aiKey().trim() && graded.length > 0) {
+        setGenState({ courseId, u, l, phase: "verifying" });
         try {
           const ver = await askAI(
             `Solve these questions independently and carefully. Respond with ONLY valid JSON, no fences:
@@ -1495,7 +1603,7 @@ ${graded
       : `[${x.i}] NUMERIC: ${x.s.prompt}`
   )
   .join("\n")}`,
-            { maxTokens: 600 }
+            { maxTokens: 600, signal: ctrl.signal }
           );
           const byI = {};
           (ver.answers || []).forEach((a) => { byI[a.i] = a.answer; });
@@ -1523,8 +1631,9 @@ ${graded
       setGenState(null);
       return true;
     } catch (e) {
-      console.error(e);
       setGenState(null);
+      if (genCancelRef.current || e.name === "AbortError") return false; // cancelled: no FAILED marker
+      console.error(e);
       setGenErrors((prev) => ({ ...prev, [courseId + ":" + u + ":" + l]: String(e.message || "generation failed") }));
       return false;
     }
@@ -1540,19 +1649,24 @@ ${graded
       u.lessons.forEach((l, li) => { if (l.status !== "ready") targets.push({ u: ui, l: li }); })
     );
     setGenQueue(targets.map((t) => courseId + ":" + t.u + ":" + t.l));
+    setGenProgress({ courseId, done: 0, total: targets.length });
     for (const t of targets) {
       if (genCancelRef.current) break;
       setGenQueue((q) => q.filter((k) => k !== courseId + ":" + t.u + ":" + t.l));
       await generateOne(courseId, t.u, t.l); // a failure marks the lesson FAILED and the queue moves on
+      setGenProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
       await sleep(150);
     }
     setGenQueue([]);
     setGenState(null);
+    setGenProgress(null);
   };
 
   const cancelGeneration = () => {
     genCancelRef.current = true;
+    try { genAbortRef.current && genAbortRef.current.abort(); } catch (e) {}
     setGenQueue([]);
+    setGenProgress(null);
   };
 
   /* ---- in-Studio editor ---- */
@@ -2378,13 +2492,13 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <button
                 className="mono"
                 onClick={() => {
-                  if ((idx > 0 || sTotal > 0) && !exitArm) { setExitArm(true); return; }
+                  if (!exitArm) { setExitArm(true); return; }
                   setExitArm(false);
-                  setScreen(lessonSource && lessonSource.courseId !== undefined && lessonSource.via !== "quick" ? "course" : "home");
+                  setScreen("home");
                 }}
                 style={{ background: "none", border: "none", color: exitArm ? "var(--margin)" : "var(--pencil)", fontSize: 12, fontWeight: exitArm ? 600 : 400 }}
               >
-                {exitArm ? "TAP AGAIN. XP WON'T BANK" : "EXIT"}
+                {exitArm ? (sTotal > 0 || idx > 0 ? "TAP AGAIN. XP WON'T BANK" : "TAP AGAIN TO LEAVE") : "EXIT"}
               </button>
             </div>
 
@@ -2987,7 +3101,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                                   <div key={li} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px dashed var(--rule)", gap: 8 }}>
                                     <span style={{ fontSize: 13.5, fontWeight: 500, flex: 1 }}>{l.title}</span>
                                     {busy ? (
-                                      <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>{genState.phase === "writing" ? "WRITING…" : "CHECKING…"}</span>
+                                      <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>{genState.phase === "writing" ? "WRITING…" : genState.phase === "verifying" ? "VERIFYING ANSWERS…" : "CHECKING…"}</span>
                                     ) : queued ? (
                                       <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>QUEUED</span>
                                     ) : failed ? (
@@ -3017,6 +3131,16 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                             >
                               REGENERATE MY WEAKEST LESSON{aiKey().trim() ? "" : " (NEEDS A KEY)"}
                             </button>
+                          )}
+                          {genProgress && genProgress.courseId === c.id && genProgress.total > 1 && (
+                            <div style={{ marginTop: 12 }}>
+                              <p className="mono" style={{ fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em", margin: 0 }}>
+                                LESSON {Math.min(genProgress.done + 1, genProgress.total)} OF {genProgress.total}{genState ? " · " + (genState.phase === "writing" ? "WRITING" : genState.phase === "verifying" ? "VERIFYING ANSWERS" : "CHECKING") : ""}
+                              </p>
+                              <div className="bar" style={{ marginTop: 6 }}>
+                                <i style={{ width: Math.round((genProgress.done / genProgress.total) * 100) + "%", background: "var(--pen)" }} />
+                              </div>
+                            </div>
                           )}
                           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                             <button className="ghost" style={{ padding: "10px 12px" }} onClick={() => setEditCourseId(editCourseId === c.id ? null : c.id)}>
