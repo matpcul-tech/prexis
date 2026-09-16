@@ -791,6 +791,7 @@ function Prexis() {
   const [exitArm, setExitArm] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [courseFilter, setCourseFilter] = useState("all");
+  const [editCourseId, setEditCourseId] = useState(null);
   const [sel, setSel] = useState(null);
   const [num, setNum] = useState("");
   const [orderPool, setOrderPool] = useState([]);
@@ -1381,6 +1382,81 @@ ${graded
   const cancelGeneration = () => {
     genCancelRef.current = true;
     setGenQueue([]);
+  };
+
+  /* ---- in-Studio editor ---- */
+  const renameCourse = (courseId, title) => {
+    const next = deep(libRef.current);
+    const c = next.courses.find((x) => x.id === courseId);
+    if (!c) return;
+    c.title = title;
+    persistLib(next);
+  };
+  const renameLesson = (courseId, u, l, title) => {
+    const next = deep(libRef.current);
+    const c = next.courses.find((x) => x.id === courseId);
+    if (!c) return;
+    c.units[u].lessons[l].title = title;
+    persistLib(next);
+  };
+  const addLessonTo = (courseId, u) => {
+    const next = deep(libRef.current);
+    const c = next.courses.find((x) => x.id === courseId);
+    if (!c) return;
+    c.units[u].lessons.push({ title: "New lesson", status: "todo", steps: [], flagged: 0 });
+    persistLib(next);
+  };
+  /* Swap a lesson with its neighbor, and remap every positional record —
+     progress scores, the resume pointer, and review-card sources — so
+     they follow the lesson, not the slot. */
+  const moveLesson = (courseId, u, l, dir) => {
+    const next = deep(libRef.current);
+    const c = next.courses.find((x) => x.id === courseId);
+    if (!c) return;
+    const arr = c.units[u].lessons;
+    const j = l + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[l], arr[j]] = [arr[j], arr[l]];
+    persistLib(next);
+    const keyA = courseId + ":" + u + ":" + l;
+    const keyB = courseId + ":" + u + ":" + j;
+    const prog = { ...(learner.courseProgress || {}) };
+    const a = prog[keyA], b = prog[keyB];
+    if (b !== undefined) prog[keyA] = b; else delete prog[keyA];
+    if (a !== undefined) prog[keyB] = a; else delete prog[keyB];
+    let lastLesson = learner.lastLesson || null;
+    if (lastLesson && lastLesson.courseId === courseId && lastLesson.u === u) {
+      if (lastLesson.l === l) lastLesson = { ...lastLesson, l: j };
+      else if (lastLesson.l === j) lastLesson = { ...lastLesson, l: l };
+    }
+    persistLearner({ ...learner, courseProgress: prog, lastLesson });
+    const nd = deep(deckRef.current);
+    let changed = false;
+    nd.forEach((card) => {
+      if (card.src && card.src.courseId === courseId && card.src.u === u) {
+        if (card.src.l === l) { card.src.l = j; changed = true; }
+        else if (card.src.l === j) { card.src.l = l; changed = true; }
+      }
+    });
+    if (changed) persistDeck(nd);
+  };
+  const regenerateWeakest = (courseId) => {
+    const course = libRef.current.courses.find((x) => x.id === courseId);
+    if (!course) return;
+    const prog = learner.courseProgress || {};
+    let worst = null, worstR = 1.01;
+    course.units.forEach((uu, ui) =>
+      uu.lessons.forEach((ll, li) => {
+        const v = prog[courseId + ":" + ui + ":" + li];
+        if (!v || ll.status !== "ready") return;
+        const m = /^(\d+)\/(\d+)$/.exec(v);
+        const r = m && Number(m[2]) ? Number(m[1]) / Number(m[2]) : 1;
+        if (r < worstR) { worstR = r; worst = { u: ui, l: li }; }
+      })
+    );
+    if (!worst) { setStudioErr("Complete a lesson in this course first — \u201cweakest\u201d needs scores to compare."); return; }
+    setStudioErr("");
+    generateOne(courseId, worst.u, worst.l);
   };
 
   const startLibraryLesson = (courseId, u, l) => {
@@ -2552,10 +2628,31 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       </button>
                       {open && (
                         <div style={{ padding: "0 14px 14px" }}>
+                          {editCourseId === c.id && (
+                            <div style={{ marginTop: 4, marginBottom: 6 }}>
+                              <p className="kicker" style={{ fontSize: 10 }}>COURSE TITLE</p>
+                              <input className="field" style={{ fontSize: 15 }} value={c.title} onChange={(e) => renameCourse(c.id, e.target.value)} />
+                            </div>
+                          )}
                           {c.units.map((u, ui) => (
                             <div key={ui} style={{ marginTop: 8 }}>
                               <p className="kicker" style={{ fontSize: 10 }}>UNIT {ui + 1} · {u.title.toUpperCase()}</p>
-                              {u.lessons.map((l, li) => {
+                              {editCourseId === c.id && u.lessons.map((l, li) => (
+                                <div key={"e" + li} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", borderBottom: "1px dashed var(--rule)" }}>
+                                  <button className="ghost" style={{ padding: "3px 7px" }} aria-label="Move up" disabled={li === 0} onClick={() => moveLesson(c.id, ui, li, -1)}>↑</button>
+                                  <button className="ghost" style={{ padding: "3px 7px" }} aria-label="Move down" disabled={li === u.lessons.length - 1} onClick={() => moveLesson(c.id, ui, li, 1)}>↓</button>
+                                  <input
+                                    value={l.title}
+                                    onChange={(e) => renameLesson(c.id, ui, li, e.target.value)}
+                                    style={{ flex: 1, background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 4, padding: "6px 8px", fontSize: 13 }}
+                                  />
+                                  <span className="mono" style={{ fontSize: 9, color: "var(--pencil)" }}>{l.status === "ready" ? "GEN" : "TODO"}</span>
+                                </div>
+                              ))}
+                              {editCourseId === c.id && (
+                                <button className="ghost" style={{ marginTop: 8, fontSize: 10 }} onClick={() => addLessonTo(c.id, ui)}>+ ADD LESSON</button>
+                              )}
+                              {editCourseId !== c.id && u.lessons.map((l, li) => {
                                 const key = c.id + ":" + ui + ":" + li;
                                 const busy = genState && genState.courseId === c.id && genState.u === ui && genState.l === li;
                                 const queued = genQueue.includes(key);
@@ -2585,7 +2682,21 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                               })}
                             </div>
                           ))}
+                          {editCourseId === c.id && (
+                            <button
+                              className="ghost"
+                              style={{ marginTop: 12, width: "100%", padding: "10px 12px", opacity: aiKey().trim() ? 1 : 0.5 }}
+                              disabled={!aiKey().trim() || !!genState || genQueue.length > 0}
+                              title={aiKey().trim() ? "Rewrites the lesson you scored lowest on" : "Needs an AI key"}
+                              onClick={() => regenerateWeakest(c.id)}
+                            >
+                              REGENERATE MY WEAKEST LESSON{aiKey().trim() ? "" : " (NEEDS A KEY)"}
+                            </button>
+                          )}
                           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                            <button className="ghost" style={{ padding: "10px 12px" }} onClick={() => setEditCourseId(editCourseId === c.id ? null : c.id)}>
+                              {editCourseId === c.id ? "DONE" : "EDIT"}
+                            </button>
                             {busyCourse || genQueue.length > 0 ? (
                               <button onClick={cancelGeneration} className="ghost" style={{ fontSize: 14, padding: "10px 12px", flex: 1, color: "var(--margin)", borderColor: "var(--margin)" }}>
                                 Cancel · {genQueue.filter((k) => k.startsWith(c.id + ":")).length + (busyCourse ? 1 : 0)} left
