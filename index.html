@@ -320,7 +320,11 @@ const dayStr = (offset) => {
 };
 const topicKey = (t) => String(t || "").trim().toLowerCase().slice(0, 40);
 
-const storage = {
+/* Profile-scoped storage: every key is prefixed by the active profile.
+   The default profile keeps the empty prefix so existing data survives. */
+let STORE_PREFIX = "";
+const PROFILES_KEY = "prexis-profiles-v1";
+const rawStorage = {
   async get(key) {
     try {
       if (window.storage && window.storage.get) return window.storage.get(key);
@@ -336,6 +340,10 @@ const storage = {
     } catch (e) {}
     try { localStorage.setItem(key, value); } catch (e) {}
   },
+};
+const storage = {
+  get: (key) => rawStorage.get(STORE_PREFIX + key),
+  set: (key, value) => rawStorage.set(STORE_PREFIX + key, value),
 };
 
 const runJS = async (code) => {
@@ -805,6 +813,8 @@ function Prexis() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [courseFilter, setCourseFilter] = useState("all");
   const [editCourseId, setEditCourseId] = useState(null);
+  const [profiles, setProfiles] = useState({ profiles: [{ id: "default", name: "Learner" }], activeId: "default" });
+  const [newProfileName, setNewProfileName] = useState("");
   const [coursePick, setCoursePick] = useState(null);
   const [librarySearch, setLibrarySearch] = useState("");
   const [sel, setSel] = useState(null);
@@ -881,8 +891,29 @@ function Prexis() {
     root.setAttribute("data-heads", prefs.heads || "serif");
   }, [prefs]);
 
-  useEffect(() => {
-    (async () => {
+  const loadProfiles = async () => {
+    let reg = { profiles: [{ id: "default", name: "Learner" }], activeId: "default" };
+    try {
+      const r = await rawStorage.get(PROFILES_KEY);
+      if (r && r.value) reg = JSON.parse(r.value);
+    } catch (e) {}
+    if (!Array.isArray(reg.profiles) || !reg.profiles.length) reg.profiles = [{ id: "default", name: "Learner" }];
+    if (!reg.profiles.some((p) => p.id === reg.activeId)) reg.activeId = reg.profiles[0].id;
+    setProfiles(reg);
+    STORE_PREFIX = reg.activeId === "default" ? "" : "p:" + reg.activeId + ":";
+    return reg;
+  };
+
+  const loadAll = async () => {
+    // reset to defaults first, so switching profiles never leaks state
+    setLearner({ xp: 0, streak: 0, lastDay: null, history: [], courseProgress: {}, dayXp: null, lastLesson: null });
+    setSkills({}); skillsRef.current = {};
+    setDeck([]); deckRef.current = [];
+    setApiKey(""); setClaudeKey("");
+    setModelId(DEFAULT_MODEL); setClaudeModel(DEFAULT_CLAUDE_MODEL);
+    setProvider("claude");
+    setGenErrors({});
+    {
       try {
         const r = await storage.get(LEARNER_KEY);
         if (r && r.value) setLearner({ courseProgress: {}, dayXp: null, ...JSON.parse(r.value) });
@@ -929,8 +960,43 @@ function Prexis() {
       } catch (e) {}
       setPrefs(p);
       if (!p.onboarded) setScreen("onboard");
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      await loadProfiles();
+      await loadAll();
     })();
   }, []);
+
+  /* ---- profile switching ---- */
+  const activateProfile = async (reg) => {
+    setProfiles(reg);
+    try { await rawStorage.set(PROFILES_KEY, JSON.stringify(reg)); } catch (e) {}
+    STORE_PREFIX = reg.activeId === "default" ? "" : "p:" + reg.activeId + ":";
+    setTab("learn");
+    setScreen("home");
+    setLesson(null);
+    setActiveCourseId(null);
+    setPendingPick(null);
+    setEditCourseId(null);
+    setLibrarySearch("");
+    setCourseFilter("all");
+    setObStep(0);
+    setBackupText("");
+    setBackupMsg("");
+    await loadAll();
+  };
+  const switchProfile = (id) => {
+    if (id === profiles.activeId) return;
+    activateProfile({ ...profiles, activeId: id });
+  };
+  const addProfile = (name) => {
+    const nm = (name || "").trim() || "Learner " + (profiles.profiles.length + 1);
+    const id = "u" + Date.now().toString(36);
+    activateProfile({ profiles: [...profiles.profiles, { id, name: nm }], activeId: id });
+  };
 
   const persistKey = async (k) => { setApiKey(k); try { await storage.set(KEY_KEY, k); } catch (e) {} };
   const persistModel = async (m) => { setModelId(m); try { await storage.set(MODEL_KEY, m); } catch (e) {} };
@@ -1790,7 +1856,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         {showTabs && (
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 24 }}>
-              <span className="mono" style={{ fontSize: 13, fontWeight: 600, letterSpacing: ".2em" }}>PREXIS <span style={{ color: "var(--pencil)", letterSpacing: ".12em", fontWeight: 400 }}>· ADAPTIVE</span></span>
+              <span className="mono" style={{ fontSize: 13, fontWeight: 600, letterSpacing: ".2em" }}>PREXIS <span style={{ color: "var(--pencil)", letterSpacing: ".12em", fontWeight: 400 }}>· {profiles.profiles.length > 1 ? ((profiles.profiles.find((p) => p.id === profiles.activeId) || {}).name || "").toUpperCase().slice(0, 14) : "ADAPTIVE"}</span></span>
               <div style={{ display: "flex", gap: 8 }}>
                 <span className="pill">STREAK {learner.streak || 0}</span>
                 <span className="pill" style={todayXp >= prefs.goal ? { background: "var(--hi)", color: "var(--hi-ink)" } : {}}>TODAY {todayXp}/{prefs.goal}</span>
@@ -2553,6 +2619,30 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 {[30, 60, 90].map((g) => (
                   <button key={g} className={"ghost" + (prefs.goal === g ? " on" : "")} onClick={() => persistPrefs({ ...prefs, goal: g })}>{g} XP</button>
                 ))}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 34 }}>
+              <p className="kicker">PROFILES</p>
+              <p style={{ marginTop: 8, fontSize: 13, color: "var(--pencil)", lineHeight: 1.5 }}>
+                Sharing this device? Each profile keeps its own XP, streaks, courses and review deck. Switching is instant.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                {profiles.profiles.map((p) => (
+                  <button key={p.id} className={"ghost" + (p.id === profiles.activeId ? " on" : "")} onClick={() => switchProfile(p.id)}>
+                    {p.name.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <input
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && newProfileName.trim()) { addProfile(newProfileName); setNewProfileName(""); } }}
+                  placeholder="New profile name"
+                  style={{ flex: 1, background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 6, padding: "8px 10px", fontSize: 14 }}
+                />
+                <button className="ghost" disabled={!newProfileName.trim()} onClick={() => { addProfile(newProfileName); setNewProfileName(""); }}>+ ADD</button>
               </div>
             </div>
 
