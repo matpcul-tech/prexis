@@ -402,6 +402,38 @@ function findLocalLesson(topic) {
   return best ? { ...best, score: bestScore } : null;
 }
 
+/* Greedy reorder so two cards of the same topic never sit adjacent. */
+const interleaveByTopic = (cards) => {
+  const pool = [...cards];
+  const out = [];
+  while (pool.length) {
+    let i = pool.findIndex((c) => !out.length || topicKey(c.topic) !== topicKey(out[out.length - 1].topic));
+    if (i < 0) i = 0;
+    out.push(pool.splice(i, 1)[0]);
+  }
+  return out;
+};
+
+/* An AI-written review variant must match the original's type and pass
+   the same mechanical checks curated content does, or it is discarded. */
+const validVariant = async (orig, v) => {
+  if (!v || v.type !== orig.type) return false;
+  if (v.type === "mcq") return !!v.prompt && Array.isArray(v.options) && v.options.length >= 3 && typeof v.answer === "number" && v.answer >= 0 && v.answer < v.options.length;
+  if (v.type === "numeric") return !!v.prompt && typeof v.answer === "number" && isFinite(v.answer);
+  if (v.type === "order") return !!v.prompt && Array.isArray(v.items) && v.items.length >= 3;
+  if (v.type === "output") {
+    if (!v.code || v.expect === undefined) return false;
+    const r = await runJS(v.code);
+    return r.ok && r.logs.join("\n").trim() === String(v.expect).trim();
+  }
+  if (v.type === "code") {
+    if (!v.solution || !v.starter || !Array.isArray(v.tests) || !v.tests.length) return false;
+    const res = await runTests(v.solution, v.tests);
+    return res.length > 0 && res.every((r) => r.pass);
+  }
+  return false;
+};
+
 const contentLessonAt = (courseId, u, l) => {
   const c = CONTENT.courses.find((x) => x.id === courseId);
   return c && c.units[u] && c.units[u].lessons[l] ? c.units[u].lessons[l] : null;
@@ -670,6 +702,8 @@ function Prexis() {
   const [lessonTopic, setLessonTopic] = useState("");
   const [idx, setIdx] = useState(0);
   const [marks, setMarks] = useState([]);
+  const [hintMarks, setHintMarks] = useState([]);
+  const [loadingLabel, setLoadingLabel] = useState(null);
   const [sel, setSel] = useState(null);
   const [num, setNum] = useState("");
   const [orderPool, setOrderPool] = useState([]);
@@ -823,8 +857,14 @@ function Prexis() {
       key,
       topic: lessonTopic || "general",
       step: deep(s),
+      // remember where this came from, so struggling cards can be re-taught
+      src: lessonSource && lessonSource.courseId !== undefined
+        ? { courseId: lessonSource.courseId, u: lessonSource.u, l: lessonSource.l }
+        : null,
       due: dayStr(1),
       interval: 1,
+      ease: 2.5,
+      seen: 0,
       lapses: 0,
     };
     persistDeck([...deckRef.current, card].slice(-60));
@@ -832,14 +872,52 @@ function Prexis() {
   const today = dayStr(0);
   const dueCards = deck.filter((c) => c.due <= today);
 
-  const startReview = () => {
-    const cards = dueCards.slice(0, 8);
+  /* Smart review session:
+     - priority: most-lapsed first, then most overdue
+     - interleaved so two cards of the same topic never sit adjacent
+     - a card missed twice gets its lesson's concept + worked example
+       replayed BEFORE the question (re-teach, then re-test)
+     - with an AI key, questions are rewritten as fresh variants testing
+       the same idea, each verified before use (originals on failure) */
+  const startReview = async () => {
+    const due = [...dueCards].sort((a, b) => (b.lapses - a.lapses) || a.due.localeCompare(b.due));
+    const cards = interleaveByTopic(due.slice(0, 8));
     if (!cards.length) return;
-    launchLesson(
-      { title: "Smart review", steps: cards.map((c) => deep(c.step)) },
-      { review: cards.map((c) => c.id) },
-      ""
-    );
+    const variantByCard = {};
+    if (aiKey().trim()) {
+      setLoadingLabel("Smart review");
+      setScreen("loading");
+      try {
+        const res = await askAI(
+          `These practice questions were answered wrong before. For each one, write ONE fresh question testing the SAME idea with different surface details (different numbers, strings, names, or scenario). Keep the exact same "type" and JSON shape as the original, including a 1-2 sentence "explain". For type code: the solution MUST pass every one of its own tests. For type output: expect MUST be exactly what the code prints. For type order: items MUST be listed in the correct order.
+Originals:
+${JSON.stringify(cards.map((c, i) => ({ i, step: c.step })))}
+Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
+          { maxTokens: 2600 }
+        );
+        for (const v of res.variants || []) {
+          const c = cards[v.i];
+          if (c && (await validVariant(c.step, v.step))) variantByCard[c.id] = v.step;
+        }
+      } catch (e) { console.error("variant generation failed", e); }
+      setLoadingLabel(null);
+    }
+    const steps = [];
+    const meta = []; // per-step: card id for graded steps, null for re-teach steps
+    for (const c of cards) {
+      if (c.lapses >= 2 && c.src && steps.length < 12) {
+        const ls = contentLessonAt(c.src.courseId, c.src.u, c.src.l);
+        if (ls) {
+          const concept = ls.steps.find((s) => s.type === "concept");
+          const worked = ls.steps.find((s) => s.type === "worked");
+          if (concept) { steps.push(deep(concept)); meta.push(null); }
+          if (worked && steps.length < 13) { steps.push(deep(worked)); meta.push(null); }
+        }
+      }
+      steps.push(deep(variantByCard[c.id] || c.step));
+      meta.push(c.id);
+    }
+    launchLesson({ title: "Smart review", steps }, { review: meta }, "");
   };
 
   useEffect(() => {
@@ -900,6 +978,7 @@ function Prexis() {
     setLessonSource(source);
     setLessonTopic(topicStr || "");
     setMarks(new Array(parsed.steps.length).fill(null));
+    setHintMarks(new Array(parsed.steps.length).fill(0));
     setIdx(0);
     setSel(null);
     setNum("");
@@ -1164,6 +1243,7 @@ ${graded
   const sharedControls = step && ["mcq", "numeric", "order", "output"].includes(step.type);
 
   const setMark = (i, v) => setMarks((m) => { const nx = [...m]; nx[i] = v; return nx; });
+  const recordHints = (i) => setHintMarks((h) => { const nx = [...h]; nx[i] = hintN; return nx; });
 
   const stepGain = () => Math.max(5, 15 - 5 * hintN);
 
@@ -1180,6 +1260,7 @@ ${graded
     setCorrect(ok);
     setChecked(true);
     setMark(idx, ok ? "right" : "wrong");
+    recordHints(idx);
     setSTotal((x) => x + 1);
     if (ok) {
       const g = stepGain();
@@ -1201,6 +1282,7 @@ ${graded
       setCorrect(true);
       setChecked(true);
       setMark(idx, "right");
+      recordHints(idx);
       setSTotal((x) => x + 1);
       setSRight((x) => x + 1);
       setSXp((x) => x + g);
@@ -1302,20 +1384,33 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         const nextDeck = deep(deckRef.current);
         const nextSkills = deep(skillsRef.current);
         lessonSource.review.forEach((id, i) => {
+          if (!id) return; // re-teach step, not a card
           const c = nextDeck.find((x) => x.id === id);
           if (!c) return;
           const ok = marks[i] === "right";
+          const usedHints = (hintMarks[i] || 0) > 0;
+          const ease = typeof c.ease === "number" ? c.ease : 2.5;
           bumpSkill(nextSkills, c.topic, ok ? 1 : 0, 0.25);
-          if (ok) {
-            c.interval = Math.ceil(c.interval * 2.5);
-            c.due = dayStr(c.interval);
-          } else {
+          c.seen = (c.seen || 0) + 1;
+          if (!ok) {
+            // again: back to the start, card gets harder to grow
             c.interval = 1;
             c.lapses += 1;
+            c.ease = Math.max(1.3, ease - 0.2);
             c.due = dayStr(1);
+          } else if (usedHints) {
+            // hard: right but assisted — small growth only
+            c.interval = Math.max(2, Math.ceil(c.interval * 1.2));
+            c.ease = Math.max(1.3, ease - 0.05);
+            c.due = dayStr(c.interval);
+          } else {
+            // good: full ease growth, ease creeps up
+            c.ease = Math.min(2.8, ease + 0.05);
+            c.interval = Math.ceil(c.interval * ease);
+            c.due = dayStr(c.interval);
           }
         });
-        persistDeck(nextDeck.filter((c) => c.interval <= 21));
+        persistDeck(nextDeck.filter((c) => c.interval <= 30));
         persistSkills(nextSkills);
       } else if (sTotal > 0 && lessonTopic) {
         const nextSkills = deep(skillsRef.current);
@@ -1470,6 +1565,12 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                     <p className="kicker" style={{ margin: 0 }}>SMART REVIEW</p>
                     <p style={{ margin: "6px 0 0", fontSize: 14.5, lineHeight: 1.5 }}>
                       {dueCards.length} thing{dueCards.length === 1 ? "" : "s"} you missed {dueCards.length === 1 ? "is" : "are"} due again today.
+                    </p>
+                    <p className="mono" style={{ margin: "6px 0 0", fontSize: 10, color: "var(--pencil)", letterSpacing: ".06em" }}>
+                      {Object.entries(dueCards.reduce((m, c) => { const t = c.topic || "general"; m[t] = (m[t] || 0) + 1; return m; }, {}))
+                        .slice(0, 3)
+                        .map(([t, n]) => t.toUpperCase() + (n > 1 ? " ×" + n : ""))
+                        .join(" · ")}
                     </p>
                   </div>
                   <button className="primary" style={{ width: "auto", padding: "10px 14px", fontSize: 14 }} onClick={startReview}>Review</button>
@@ -1638,7 +1739,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               ))}
             </div>
             <p className="kicker" style={{ marginTop: 24 }}>{aiKey().trim() ? aiName().toUpperCase() + " WRITING" : "WRITING LESSON"}</p>
-            <p style={{ fontWeight: 800, fontSize: 22, marginTop: 8 }}>{topic}</p>
+            <p style={{ fontWeight: 800, fontSize: 22, marginTop: 8 }}>{loadingLabel || topic}</p>
           </div>
         )}
 
