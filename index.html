@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.10/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mathjs@13.2.0/lib/browser/math.js"></script>
+<script src="content.js"></script>
 <style>
   /* ---- base tokens: Notebook skin (light default) ---- */
   :root {
@@ -195,7 +196,7 @@ const CLAUDE_MODELS = [
   { id: "claude-haiku-4-5", label: "HAIKU 4.5" },
 ];
 const DEFAULT_CLAUDE_MODEL = "claude-opus-5";
-const TRY_TOPICS = ["Website design", "Running a small website", "SEO basics", "CSS layout", "Domain names & hosting"];
+const TRY_TOPICS = ["Email marketing", "Excel formulas", "Photography basics", "Negotiation", "Personal finance"];
 
 const SKINS = [
   { id: "notebook", name: "Notebook", note: "Ruled paper, red margin", dots: ["#F7F3EA", "#1A1914", "#FFE24A"] },
@@ -365,263 +366,73 @@ const runTests = async (userCode, tests) => {
   return out;
 };
 
-/* ---------------- curated lessons ---------------- */
-const L_BASICS = {
-  title: "Values that stay put",
-  steps: [
-    {
-      type: "concept",
-      heading: "A name for a value",
-      body: "A variable is a labeled box. const means the label will not be moved to a different box. The value inside can still be an object you change later — but the binding itself is fixed.",
-      code: "const city = \"Lisbon\";\nlet visits = 0;\nvisits = visits + 1;",
-    },
-    {
-      type: "output",
-      prompt: "What does this print?",
-      code: "const n = 3;\nconsole.log(n + n);",
-      expect: "6",
-      explain: "n holds 3. n + n is ordinary arithmetic, then console.log prints the result as text.",
-    },
-    {
-      type: "concept",
-      heading: "Functions do work",
-      body: "A function is a reusable recipe. Parameters are the ingredients you pass in. return is how the recipe hands a result back to whoever called it.",
-      code: "function greet(name) {\n  return \"Hi, \" + name;\n}",
-    },
-    {
-      type: "mcq",
-      prompt: "Which line actually gives you the greeting string to use later?",
-      options: [
-        "greet(\"Ada\")",
-        "console.log(greet)",
-        "function greet(name)",
-        "return greet",
-      ],
-      answer: 0,
-      explain: "Calling greet(\"Ada\") runs the body and returns \"Hi, Ada\". Logging the function itself only prints the function object.",
-    },
-    {
-      type: "code",
-      prompt: "Write double so it returns twice its input.",
-      starter: "function double(n) {\n  \n}",
-      tests: [
-        { call: "double(2)", expect: 4 },
-        { call: "double(0)", expect: 0 },
-        { call: "double(-3)", expect: -6 },
-      ],
-      solution: "function double(n) {\n  return n * 2;\n}",
-      explain: "Multiply and return. No console.log needed — tests read the return value.",
-    },
-    {
-      type: "order",
-      prompt: "Put these in the order JavaScript actually does them.",
-      items: ["Read the function body", "Bind the parameter n to 4", "Evaluate n * 2", "Hand 8 back to the caller"],
-      explain: "A call first binds arguments, then runs the body, then returns.",
-      codeItems: false,
-    },
-    {
-      type: "concept",
-      heading: "Print is not return",
-      body: "console.log shows something on screen. return gives a value to other code. Tests in Prexis watch return values, not the console — unless the step is an output question.",
-    },
-  ],
+/* ---------------- built-in curriculum (content.js) ---------------- */
+const CONTENT = (window.PREXIS_CONTENT && Array.isArray(window.PREXIS_CONTENT.courses))
+  ? window.PREXIS_CONTENT
+  : { courses: [], quickPicks: [] };
+
+const STOP_WORDS = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "my", "me", "how", "do", "i", "want", "learn", "learning", "about", "with", "what", "is"]);
+const tokensOf = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP_WORDS.has(w));
+
+const LESSON_INDEX = (() => {
+  const out = [];
+  CONTENT.courses.forEach((c) =>
+    c.units.forEach((u, ui) =>
+      u.lessons.forEach((l, li) => {
+        const words = new Set([...tokensOf(l.title), ...(l.keywords || []).map((k) => String(k).toLowerCase()), ...tokensOf(c.subject)]);
+        out.push({ courseId: c.id, u: ui, l: li, title: l.title, words });
+      })
+    )
+  );
+  return out;
+})();
+
+/* Score a typed topic against the built-in library. 1 = every word matched. */
+function findLocalLesson(topic) {
+  const tw = tokensOf(topic);
+  if (!tw.length) return null;
+  let best = null, bestScore = 0;
+  LESSON_INDEX.forEach((e) => {
+    let hit = 0;
+    tw.forEach((w) => { if (e.words.has(w)) hit += 1; });
+    const score = hit / tw.length;
+    if (score > bestScore) { bestScore = score; best = e; }
+  });
+  return best ? { ...best, score: bestScore } : null;
+}
+
+const contentLessonAt = (courseId, u, l) => {
+  const c = CONTENT.courses.find((x) => x.id === courseId);
+  return c && c.units[u] && c.units[u].lessons[l] ? c.units[u].lessons[l] : null;
 };
 
-const L_ARRAYS = {
-  title: "Lists you can query",
-  steps: [
-    {
-      type: "concept",
-      heading: "Arrays keep order",
-      body: "An array is a numbered shelf. Index 0 is the first slot. length is how many slots are filled. Methods like map and filter return new arrays; they do not rewrite the original unless you ask them to.",
-      code: "const nums = [3, 1, 4];\nnums[0];      // 3\nnums.length;  // 3",
-    },
-    {
-      type: "output",
-      prompt: "What does this print?",
-      code: "const letters = [\"a\", \"b\", \"c\"];\nconsole.log(letters[letters.length - 1]);",
-      expect: "c",
-      explain: "length is 3, so length - 1 is 2, and that slot holds \"c\".",
-    },
-    {
-      type: "mcq",
-      prompt: "What does map return?",
-      code: "const n = [1, 2, 3];\nn.map(x => x * 10);",
-      options: ["[10, 20, 30]", "[1, 2, 3]", "30", "undefined"],
-      answer: 0,
-      explain: "map builds a new array by running the function on every item. n itself stays [1, 2, 3].",
-    },
-    {
-      type: "code",
-      prompt: "Return only the even numbers from the list.",
-      starter: "function evens(list) {\n  \n}",
-      tests: [
-        { call: "evens([1,2,3,4])", expect: [2, 4] },
-        { call: "evens([7])", expect: [] },
-        { call: "evens([0, 8])", expect: [0, 8] },
-      ],
-      solution: "function evens(list) {\n  return list.filter(n => n % 2 === 0);\n}",
-      explain: "filter keeps items whose callback returns true. 0 is even.",
-    },
-    {
-      type: "order",
-      prompt: "Order these lines so the last expression is the doubled list.",
-      items: ["const src = [1, 2, 3];", "const out = src.map(n => n * 2);", "out"],
-      explain: "Create the source, derive a new array, then read it.",
-      codeItems: true,
-    },
-    {
-      type: "concept",
-      heading: "Prefer new arrays",
-      body: "map, filter, and slice leave the original alone. push, splice, and sort mutate. When you are learning, prefer the first family — bugs stay smaller.",
-    },
-  ],
-};
+const contentCourses = () =>
+  CONTENT.courses.map((c) => ({
+    id: c.id,
+    subject: c.subject,
+    level: c.level,
+    title: c.title,
+    builtin: true,
+    units: c.units.map((u) => ({
+      title: u.title,
+      lessons: u.lessons.map((l) => ({ title: l.title, status: "ready", steps: deep(l.steps), flagged: 0 })),
+    })),
+  }));
 
-const L_ASYNC = {
-  title: "Waiting without freezing",
-  steps: [
-    {
-      type: "concept",
-      heading: "A promise is a later value",
-      body: "Some work is not done yet: a network call, a timer. A Promise is an object that will fulfill with a value or reject with an error. await pauses this function until that happens — it does not freeze the whole page.",
-      code: "async function load() {\n  const res = await fetch(\"/api\");\n  return res.json();\n}",
-    },
-    {
-      type: "mcq",
-      prompt: "What must be true to use await inside a function?",
-      options: [
-        "The function is marked async",
-        "The function is named wait",
-        "You imported promises",
-        "The file is a module named delay.js",
-      ],
-      answer: 0,
-      explain: "await is only legal in async functions (and at the top level of modules).",
-    },
-    {
-      type: "output",
-      prompt: "This snippet runs a resolved promise and logs the value. What prints?",
-      code: "Promise.resolve(7).then((n) => {\n  console.log(n + 1);\n});",
-      expect: "8",
-      explain: "Promise.resolve(7) is already fulfilled. then receives 7 and logs 8.",
-    },
-    {
-      type: "code",
-      prompt: "Write plusLater so it returns a Promise that fulfills with a + b.",
-      starter: "function plusLater(a, b) {\n  \n}",
-      tests: [
-        { call: "plusLater(2, 3).then(x => x)", expect: 5 },
-        { call: "plusLater(0, 0).then(x => x)", expect: 0 },
-      ],
-      solution: "function plusLater(a, b) {\n  return Promise.resolve(a + b);\n}",
-      explain: "Return a Promise, not the raw number. Promise.resolve wraps a ready value.",
-    },
-    {
-      type: "order",
-      prompt: "Order the life of a successful fetch.",
-      items: ["Call fetch", "Await the Response", "Read the body", "Use the data"],
-      explain: "You cannot read the body before the response exists.",
-      codeItems: false,
-    },
-    {
-      type: "concept",
-      heading: "Errors travel too",
-      body: "If a promise rejects, await throws. wrap the call in try/catch, or attach .catch. Swallowing the error silently is how production bugs hide.",
-    },
-  ],
-};
-
-const L_DEBUG = {
-  title: "Read the error first",
-  steps: [
-    {
-      type: "concept",
-      heading: "The stack is a map",
-      body: "An error message is not an insult. It names the failure. The stack trace lists the calls that led there, newest first. Read the message, then the first line that is your code.",
-      code: "TypeError: Cannot read properties of undefined (reading 'name')\n    at greet (app.js:4:18)",
-    },
-    {
-      type: "mcq",
-      prompt: "user is undefined. Which access blows up?",
-      code: "function greet(user) {\n  return \"Hi \" + user.name;\n}",
-      options: ["user.name", "\"Hi \"", "function greet", "return"],
-      answer: 0,
-      explain: "You can concatenate a string with almost anything. Reading .name on undefined throws.",
-    },
-    {
-      type: "output",
-      prompt: "What does this print?",
-      code: "const xs = [10, 20];\nconsole.log(xs[2]);",
-      expect: "undefined",
-      explain: "Out-of-range index is undefined, not an exception. That quiet undefined is often the bug one line later.",
-    },
-    {
-      type: "code",
-      prompt: "Write safeName: return user.name if user exists, otherwise \"guest\".",
-      starter: "function safeName(user) {\n  \n}",
-      tests: [
-        { call: "safeName({name:\"Ada\"})", expect: "Ada" },
-        { call: "safeName(undefined)", expect: "guest" },
-        { call: "safeName(null)", expect: "guest" },
-      ],
-      solution: "function safeName(user) {\n  return (user && user.name) || \"guest\";\n}",
-      explain: "Guard the object before you touch a property. null and undefined are both unsafe.",
-    },
-    {
-      type: "order",
-      prompt: "A debugging order that usually works.",
-      items: ["Reproduce it once", "Read the exact error", "Find the first bad value", "Change one thing"],
-      explain: "If you change three things at once you will not know which fix worked.",
-      codeItems: false,
-    },
-    {
-      type: "concept",
-      heading: "Log the shape",
-      body: "When a value looks wrong, print JSON.stringify(value) or inspect keys. Guessing types in your head is slower than looking once.",
-    },
-  ],
-};
-
-const BUILT_IN = [
-  { id: "js-basics", topic: "JavaScript basics", lesson: L_BASICS },
-  { id: "arrays", topic: "Array methods", lesson: L_ARRAYS },
-  { id: "async", topic: "Async and await", lesson: L_ASYNC },
-  { id: "debug", topic: "Debugging errors", lesson: L_DEBUG },
-];
-
-const SEED_COURSE = {
-  id: "seed-js",
-  subject: "JavaScript",
-  level: "Beginner",
-  title: "JavaScript, by hand",
-  units: [
-    {
-      title: "The grain of the language",
-      lessons: [
-        { title: L_BASICS.title, status: "ready", steps: L_BASICS.steps, flagged: 0 },
-        { title: L_ARRAYS.title, status: "ready", steps: L_ARRAYS.steps, flagged: 0 },
-        { title: L_DEBUG.title, status: "ready", steps: L_DEBUG.steps, flagged: 0 },
-      ],
-    },
-    {
-      title: "Time and trouble",
-      lessons: [
-        { title: L_ASYNC.title, status: "ready", steps: L_ASYNC.steps, flagged: 0 },
-        { title: "Objects you can trust", status: "todo", steps: [], flagged: 0 },
-        { title: "Small programs", status: "todo", steps: [], flagged: 0 },
-      ],
-    },
-  ],
+/* Merge built-in courses into a stored library, honoring deletions. */
+const withBuiltins = (lib) => {
+  const hidden = lib.hiddenBuiltins || [];
+  const courses = (lib.courses || []).filter((c) => c.id !== "seed-js");
+  contentCourses().forEach((cc) => {
+    if (!hidden.includes(cc.id) && !courses.some((c) => c.id === cc.id)) courses.push(cc);
+  });
+  return { ...lib, courses };
 };
 
 /* ---------------- local teacher (no API required) ---------------- */
 function localLesson(topic, level) {
   const t = topic.trim();
   const lower = t.toLowerCase();
-  const known = BUILT_IN.find((b) => lower.includes(b.topic.toLowerCase().split(" ")[0]) || b.topic.toLowerCase() === lower);
-  if (known) return deep(known.lesson);
-
   const slug = t.replace(/[^\w\s]/g, "").slice(0, 42) || "This idea";
   const isCode = /code|script|function|array|async|react|html|css|debug|program|loop|object|promise|json|api/.test(lower);
   const isMath = /math|percent|interest|algebra|ratio|rate|compound|probability|stat/.test(lower);
@@ -888,7 +699,7 @@ function Prexis() {
   const [sLevel, setSLevel] = useState("Beginner");
   const [drafting, setDrafting] = useState(false);
   const [genState, setGenState] = useState(null);
-  const [expandedId, setExpandedId] = useState("seed-js");
+  const [expandedId, setExpandedId] = useState("core-js");
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [activeCourseId, setActiveCourseId] = useState(null);
@@ -932,15 +743,10 @@ function Prexis() {
       } catch (e) {}
       try {
         const r2 = await storage.get(LIB_KEY);
-        if (r2 && r2.value) {
-          const parsed = JSON.parse(r2.value);
-          if (parsed.courses && parsed.courses.length) setLibrary(parsed);
-          else setLibrary({ courses: [deep(SEED_COURSE)] });
-        } else {
-          setLibrary({ courses: [deep(SEED_COURSE)] });
-        }
+        if (r2 && r2.value) setLibrary(withBuiltins(JSON.parse(r2.value)));
+        else setLibrary(withBuiltins({ courses: [] }));
       } catch (e) {
-        setLibrary({ courses: [deep(SEED_COURSE)] });
+        setLibrary(withBuiltins({ courses: [] }));
       }
       try {
         const rs = await storage.get(SKILLS_KEY);
@@ -1074,7 +880,19 @@ function Prexis() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  /* Shuffle MCQ options at launch so the right answer has no home position
+     (both curated and AI lessons otherwise develop one). */
+  const prepSteps = (steps) =>
+    steps.map((s) => {
+      if (s.type === "mcq" && Array.isArray(s.options) && typeof s.answer === "number") {
+        const idx = shuffle(s.options.map((_, i) => i));
+        return { ...s, options: idx.map((i) => s.options[i]), answer: idx.indexOf(s.answer) };
+      }
+      return s;
+    });
+
   const launchLesson = (parsed, source, topicStr) => {
+    parsed = { ...parsed, steps: prepSteps(parsed.steps) };
     setLesson(parsed);
     setLessonSource(source);
     setLessonTopic(topicStr || "");
@@ -1120,12 +938,19 @@ function Prexis() {
     const lvl = levelTouched ? level : (recLevel(sk) || level);
     if (!levelTouched && recLevel(sk)) setLevel(recLevel(sk));
     setErr("");
+    // Curated library first: a strong match beats generating anything.
+    // Without a key any decent match serves; with a key only a full match
+    // short-circuits, so specific asks still get a custom AI lesson.
+    const match = findLocalLesson(chosen);
+    const threshold = aiKey().trim() ? 0.99 : 0.5;
+    if (match && match.score >= threshold) {
+      const ls = contentLessonAt(match.courseId, match.u, match.l);
+      if (ls) { launchLesson({ title: ls.title, steps: deep(ls.steps) }, null, chosen); return; }
+    }
     setScreen("loading");
     try {
       let parsed = null;
-      const known = BUILT_IN.find((b) => b.topic.toLowerCase() === chosen.toLowerCase());
-      if (known && !aiKey().trim()) parsed = deep(known.lesson);
-      if (!parsed && aiKey().trim()) {
+      if (aiKey().trim()) {
         const ctx = adaptContext(chosen);
         parsed = await askAI(
           `Create one short interactive lesson teaching: "${chosen}". Learner level: ${lvl}.
@@ -1596,10 +1421,10 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         {tab === "learn" && screen === "home" && (
           <div>
             <h1 className="display" style={{ fontWeight: 700, fontSize: 34, lineHeight: 1.08, margin: "26px 0 0" }}>
-              Learn to code.<br /><span className="hi">By coding.</span>
+              Learn anything.<br /><span className="hi">By doing it.</span>
             </h1>
             <p style={{ color: "var(--pencil)", fontSize: 14.5, lineHeight: 1.55, marginTop: 12 }}>
-              Short interactive lessons that adapt to you. You type, the page keeps score, and what you miss comes back until you own it.
+              Thirty-plus built-in interactive lessons — code, web design, SEO, math, clear thinking — that work with no account and no API key. What you miss comes back until you own it.
             </p>
 
             {dueCards.length > 0 && (
@@ -1632,19 +1457,23 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               </div>
               <button onClick={() => startQuick()} className="primary" style={{ marginTop: 18 }}>Start lesson</button>
               {err && <p style={{ marginTop: 10, fontSize: 13, color: "var(--margin)" }}>{err}</p>}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-                {BUILT_IN.map((s) => (
+              <p className="kicker" style={{ marginTop: 18 }}>FROM THE LIBRARY · NO KEY NEEDED</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                {CONTENT.quickPicks.map((q) => (
                   <button
-                    key={s.id}
-                    onClick={() => { setTopic(s.topic); startQuick(s.topic); }}
+                    key={q.label}
+                    onClick={() => {
+                      const ls = contentLessonAt(q.course, q.u, q.l);
+                      if (ls) launchLesson({ title: ls.title, steps: deep(ls.steps) }, null, q.topic || q.label);
+                    }}
                     className="chip"
                     style={{ fontSize: 13, padding: "6px 10px" }}
                   >
-                    {s.topic}
+                    {q.label}
                   </button>
                 ))}
               </div>
-              <p className="kicker" style={{ marginTop: 18 }}>OR ANY SUBJECT{aiKey().trim() ? "" : " · BEST WITH AN AI KEY (STUDIO)"}</p>
+              <p className="kicker" style={{ marginTop: 18 }}>WITH AI · ANYTHING ELSE{aiKey().trim() ? "" : " (ADD A KEY IN STUDIO)"}</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
                 {TRY_TOPICS.map((t) => (
                   <button
@@ -1658,7 +1487,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 ))}
               </div>
               <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 10 }}>
-                Type anything above — “website design”, “email marketing”, “Excel formulas”. For a full multi-lesson course on a subject, use Studio.
+                Type anything above. Library subjects work offline; the AI covers the rest. For a full multi-lesson course, use Studio.
               </p>
             </div>
 
@@ -2241,6 +2070,9 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                                 if (confirmDel === c.id) {
                                   const next = deep(libRef.current);
                                   next.courses = next.courses.filter((x) => x.id !== c.id);
+                                  if (CONTENT.courses.some((cc) => cc.id === c.id)) {
+                                    next.hiddenBuiltins = [...(next.hiddenBuiltins || []), c.id];
+                                  }
                                   persistLib(next);
                                   setConfirmDel(null);
                                 } else setConfirmDel(c.id);

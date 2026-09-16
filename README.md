@@ -1,10 +1,23 @@
 # Prexis
 
-**Learn to code. By coding.** An adaptive, interactive teaching tool in a single HTML file — short Brilliant-style lessons where you write real code and the page grades it, wrapped in a learning engine that adapts to how you answer and a style system that adapts to how you like to read.
+**Learn anything. By doing it.** An adaptive, interactive teaching tool — short Brilliant-style lessons where you answer, build, and drag, wrapped in a learning engine that adapts to how you answer and a style system that adapts to how you like to read.
 
 ## Run it
 
-Open `index.html` in any modern browser. No build step, no server. React, Babel and mathjs load from jsDelivr; everything else is in the file.
+Open `index.html` in any modern browser (keep `content.js` beside it). No build step, no server. React, Babel and mathjs load from jsDelivr; everything else ships with the app.
+
+## Built-in curriculum (no key, no account)
+
+Like Brilliant, the core content is authored, not generated: `content.js` carries 31 curated lessons across 6 subjects, all fully offline —
+
+- **JavaScript, by hand** — variables, arrays, debugging, async, objects, small programs (with real in-browser code grading)
+- **Web pages from scratch** — HTML structure, links & images, CSS selectors, the box model, flexbox, responsive design
+- **Websites that work** — visual hierarchy, type & color, copywriting, domains/hosting/going live, site maintenance
+- **Found on Google** — how search works, keywords, on-page SEO, backlinks, measuring
+- **Numbers you can use** — percentages, ratios, compound growth, probability, averages (with interactive graphs)
+- **Clear thinking** — logical fallacies, correlation vs causation, Fermi estimation, base rates & risk
+
+Typing a topic checks the library first: "website design" or "flexbox" opens the curated lesson instantly; the AI only gets called for subjects the library doesn't cover. MCQ options are shuffled at launch so answers have no home position.
 
 ## The intelligence
 
@@ -29,4 +42,4 @@ All progress, preferences, mastery and the review deck persist locally (host key
 
 `concept` · `mcq` · `numeric` · `order` · `output` (predict what code prints — it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve)
 
-Four curated JavaScript lessons and a seed course work fully offline with no API key.
+All 31 curated lessons and 6 courses work fully offline with no API key.
