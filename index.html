@@ -789,6 +789,8 @@ function Prexis() {
   const [loadingLabel, setLoadingLabel] = useState(null);
   const [pendingPick, setPendingPick] = useState(null);
   const [exitArm, setExitArm] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [courseFilter, setCourseFilter] = useState("all");
   const [sel, setSel] = useState(null);
   const [num, setNum] = useState("");
   const [orderPool, setOrderPool] = useState([]);
@@ -1606,6 +1608,9 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         history: [{ t: lesson.title, d: td, s: sRight + "/" + sTotal }, ...(learner.history || [])].slice(0, 10),
         courseProgress: progress,
         dayXp: { d: td, xp: prevDay + sXp },
+        lastLesson: lessonSource && lessonSource.courseId !== undefined
+          ? { courseId: lessonSource.courseId, u: lessonSource.u, l: lessonSource.l, when: td }
+          : learner.lastLesson || null,
       });
       setScreen("done");
       return;
@@ -1634,6 +1639,42 @@ Respond with ONLY valid JSON: {"note":"..."}`,
       })
     );
     return { ready, done, total };
+  };
+
+  /* Resume: next ready lesson in any library course (custom ones included). */
+  const nextReadyInCourse = (course, preferred) => {
+    const prog = learner.courseProgress || {};
+    const all = [];
+    course.units.forEach((u, ui) =>
+      u.lessons.forEach((ls, li) => { if (ls.status === "ready") all.push({ u: ui, l: li, key: course.id + ":" + ui + ":" + li }); })
+    );
+    if (!all.length) return null;
+    const pref = all.find((x) => x.u === preferred.u && x.l === preferred.l);
+    if (pref && !prog[pref.key]) return pref;
+    const fresh = all.find((x) => !prog[x.key]);
+    if (fresh) return fresh;
+    const ratio = (v) => { const m = /^(\d+)\/(\d+)$/.exec(v || ""); return m && Number(m[2]) ? Number(m[1]) / Number(m[2]) : 1; };
+    return all.reduce((w, x) => (ratio(prog[x.key]) < ratio(prog[w.key]) ? x : w), all[0]);
+  };
+  const resume = (() => {
+    const ll = learner.lastLesson;
+    if (!ll) return null;
+    const course = library.courses.find((c) => c.id === ll.courseId);
+    if (!course) return null;
+    const pick = nextReadyInCourse(course, ll);
+    if (!pick) return null;
+    const ls = course.units[pick.u].lessons[pick.l];
+    const prog = lessonProgressOf(course);
+    return { course, pick, ls, allDone: prog.done >= prog.total };
+  })();
+  const resumeStart = () => {
+    if (!resume) return;
+    setActiveCourseId(resume.course.id);
+    launchLesson(
+      { title: resume.ls.title, steps: deep(resume.ls.steps) },
+      { courseId: resume.course.id, u: resume.pick.u, l: resume.pick.l },
+      resume.course.subject
+    );
   };
 
   const activeCourse = activeCourseId ? library.courses.find((c) => c.id === activeCourseId) : null;
@@ -1759,6 +1800,21 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               </div>
             )}
 
+            {resume && (
+              <div className="card" style={{ marginTop: 12, padding: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <div>
+                    <p className="kicker" style={{ margin: 0 }}>CONTINUE · {resume.course.title.toUpperCase()}</p>
+                    <p style={{ margin: "6px 0 0", fontSize: 14.5, fontWeight: 700 }}>{resume.ls.title}</p>
+                    <p className="mono" style={{ margin: "4px 0 0", fontSize: 10, color: "var(--pencil)", letterSpacing: ".06em" }}>
+                      {resume.allDone ? "COURSE DONE · REDO YOUR WEAKEST" : "NEXT LESSON"} · {resume.ls.steps.length} STEPS
+                    </p>
+                  </div>
+                  <button className="primary" style={{ width: "auto", padding: "10px 14px", fontSize: 14 }} onClick={resumeStart}>Continue</button>
+                </div>
+              </div>
+            )}
+
             <div style={{ marginTop: 22 }}>
               <p className="kicker">QUICK LESSON</p>
               <input
@@ -1850,13 +1906,22 @@ Respond with ONLY valid JSON: {"note":"..."}`,
 
             <div style={{ marginTop: 34 }}>
               <p className="kicker">MY COURSES</p>
+              {library.courses.length > 3 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  {["all", ...Array.from(new Set(library.courses.map((c) => c.subject)))].map((f) => (
+                    <button key={f} className={"ghost" + (courseFilter === f ? " on" : "")} style={{ fontSize: 10, padding: "4px 8px" }} onClick={() => setCourseFilter(f)}>
+                      {f === "all" ? "ALL" : f.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
               {library.courses.length === 0 && (
                 <p style={{ marginTop: 10, fontSize: 14, color: "var(--pencil)", lineHeight: 1.55 }}>
                   No courses yet. Open Studio to draft one.
                 </p>
               )}
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-                {library.courses.map((c) => {
+                {(courseFilter === "all" ? library.courses : library.courses.filter((c) => c.subject === courseFilter)).map((c) => {
                   const p = lessonProgressOf(c);
                   return (
                     <button
@@ -2391,6 +2456,21 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <p style={{ marginTop: 24, fontSize: 14, color: "var(--pencil)", lineHeight: 1.55 }}>
               Your chosen AI engine writes real lessons on any subject, verified before they ship: generated code runs against its own tests, quiz answers get independently re-solved, and your mastery record shapes every prompt. Without a key, the local teacher covers the 49 library lessons fully — but custom subjects only get a generic practice shell, so a key is what unlocks truly new topics.
             </p>
+
+            <div style={{ marginTop: 20 }}>
+              <button className="ghost" onClick={() => setGuideOpen((o) => !o)} style={{ width: "100%", textAlign: "left", padding: "10px 12px" }}>
+                {guideOpen ? "▾ " : "▸ "}HOW THE AI ENGINE WORKS
+              </button>
+              {guideOpen && (
+                <div className="card" style={{ marginTop: 8, padding: "12px 14px", boxShadow: "none", fontSize: 13.5, lineHeight: 1.55 }}>
+                  <p style={{ margin: 0 }}><b>Providers.</b> Claude (Anthropic) is the default — Opus 5 writes the strongest lessons, Sonnet 5 is faster and cheaper, Haiku 4.5 is the budget pick. Grok (xAI) is the alternative engine.</p>
+                  <p style={{ margin: "10px 0 0" }}><b>Your key stays here.</b> It is saved only in this browser, sent only to the provider you chose, and never included in backups. Each visitor uses their own key.</p>
+                  <p style={{ margin: "10px 0 0" }}><b>Cost.</b> A generated lesson is a few thousand tokens — typically under ten cents with Opus 5, a cent or two with Haiku 4.5. Answer-verification passes add a little more.</p>
+                  <p style={{ margin: "10px 0 0" }}><b>Speed.</b> Expect roughly 10–30 seconds per lesson. Generate all works through lessons one at a time, and you can cancel between them.</p>
+                  <p style={{ margin: "10px 0 0" }}><b>No key?</b> All 49 library lessons work fully offline. Custom subjects need a key to get real lessons instead of a generic practice shell.</p>
+                </div>
+              )}
+            </div>
 
             <div style={{ marginTop: 20 }}>
               <p className="kicker">AI ENGINE</p>
