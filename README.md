@@ -24,7 +24,7 @@ Lessons teach before they test: a concept, then a worked example you reveal step
 
 ## The intelligence
 
-- **Mastery model** — every graded step feeds a per-subject accuracy score (exponential moving average). Mastery bars appear on the home screen, and each subject's recommended difficulty is applied automatically the next time you study it.
+- **Mastery model** — every graded step feeds a per-subject accuracy score (exponential moving average). Mastery bars appear on the home screen, and each subject's recommended difficulty is applied automatically the next time you study it. Tap any subject for a detail screen: your score history graphed over time (with the intermediate/advanced thresholds marked), session count, what's still in review, and a one-tap practice launcher.
 - **Smart review (spaced repetition)** — anything you get wrong becomes a review card scheduled SM-2 style: each card carries an ease factor that grows when you answer cleanly, shrinks when you need hints (counted as "hard"), and drops hard on a miss. Sessions prioritize your most-lapsed and most-overdue cards, interleave topics so no two of the same subject sit adjacent, and **re-teach before re-testing**: a card you've missed twice gets its lesson's concept and worked example replayed before the question. With an AI key, due questions are rewritten as fresh variants testing the same idea (different numbers, names, code) — each variant is mechanically verified before use — so you prove the skill, not the memorized answer. Cards graduate once their interval passes a month.
 - **Adaptive AI lessons** — add an API key in the Studio tab and the AI writes lessons live on any subject you type ("website design", "SEO basics", "Excel formulas"…). Two engines are supported: **Claude (Anthropic)** — the default, using `claude-opus-5` with `claude-sonnet-5` and `claude-haiku-4-5` as options — and **Grok (xAI)**. Your mastery score and your recent misses are fed into every prompt, so new lessons reteach weak spots from a fresh angle. Generated code steps are executed against their own tests before shipping, and quiz answers are independently re-solved for verification. Keys stay in your browser; each visitor uses their own.
 - **Hint ladder** — every graded step offers hints at an XP cost: MCQs eliminate a wrong option, code tasks reveal the solution line by line, ordering tasks place the next item, output/numeric tasks narrow the target.
@@ -37,7 +37,8 @@ The **Style** tab (and first-run setup) reshapes the whole app:
 
 - Four complete looks: **Notebook** (ruled paper), **Chalkboard** (dark board), **Terminal** (phosphor on black), **Gallery** (clean white, indigo)
 - Text size, page width (focus / wide), serif or sans headings
-- Daily XP goal with streaks and a today counter
+- Daily XP goal with streaks and a today counter — miss a day and you can spend 50 XP to repair the streak
+- Sound and vibration feedback on answers (tiny synth, no audio files), each with its own toggle
 
 All progress, preferences, mastery and the review deck persist locally (host key-value storage when available, `localStorage` otherwise). No account, no server. **Sharing a device?** The Style tab has profiles — each keeps its own XP, streaks, courses and review deck, and switching is instant.
 
