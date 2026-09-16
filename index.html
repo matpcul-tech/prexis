@@ -297,6 +297,7 @@ async function askClaude(prompt, { key, model, maxTokens } = {}) {
 }
 
 const deep = (x) => JSON.parse(JSON.stringify(x));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const shuffle = (arr) => {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -464,6 +465,17 @@ const withBuiltins = (lib) => {
   contentCourses().forEach((cc) => {
     if (!hidden.includes(cc.id) && !courses.some((c) => c.id === cc.id)) courses.push(cc);
   });
+  // retro-tidy prose in previously generated lessons (whitespace only, never code)
+  courses.forEach((c) => {
+    c.title = tidyStr(c.title);
+    c.subject = tidyStr(c.subject);
+    c.units.forEach((u) =>
+      u.lessons.forEach((l) => {
+        l.title = tidyStr(l.title);
+        if (Array.isArray(l.steps)) tidyLesson({ title: l.title, steps: l.steps });
+      })
+    );
+  });
   return { ...lib, courses };
 };
 
@@ -482,7 +494,7 @@ function localLesson(topic, level) {
         {
           type: "concept",
           heading: "Start from one rule",
-          body: `${slug} gets easier once you can state one rule at a time. The steps below each ask you to predict or build something tiny — that tight loop is the fastest way in.`,
+          body: `Learning ${slug} gets easier once you can state one rule at a time. The steps below each ask you to predict or build something tiny — that tight loop is the fastest way in.`,
           code: "const idea = \"" + slug.replace(/"/g, "") + "\";\nconsole.log(idea.length);",
         },
         {
@@ -786,12 +798,15 @@ function Prexis() {
   const [idx, setIdx] = useState(0);
   const [marks, setMarks] = useState([]);
   const [hintMarks, setHintMarks] = useState([]);
+  const [stepGains, setStepGains] = useState([]);
   const [loadingLabel, setLoadingLabel] = useState(null);
   const [pendingPick, setPendingPick] = useState(null);
   const [exitArm, setExitArm] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [courseFilter, setCourseFilter] = useState("all");
   const [editCourseId, setEditCourseId] = useState(null);
+  const [coursePick, setCoursePick] = useState(null);
+  const [librarySearch, setLibrarySearch] = useState("");
   const [sel, setSel] = useState(null);
   const [num, setNum] = useState("");
   const [orderPool, setOrderPool] = useState([]);
@@ -1121,6 +1136,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setLessonTopic(topicStr || "");
     setMarks(new Array(parsed.steps.length).fill(null));
     setHintMarks(new Array(parsed.steps.length).fill(0));
+    setStepGains(new Array(parsed.steps.length).fill(0));
     setIdx(0);
     setSel(null);
     setNum("");
@@ -1287,6 +1303,8 @@ Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty build
       })
     );
     setGenState({ courseId, u, l, phase: "writing" });
+    // local generation is near-instant; hold each phase long enough to read
+    if (!aiKey().trim()) await sleep(450);
     try {
       let gen;
       if (aiKey().trim()) {
@@ -1301,13 +1319,14 @@ ${lessonSchema}`,
           { maxTokens: 2500 }
         );
       } else {
-        gen = localLesson(`${lessonTitle} — ${course.title}`, course.level);
+        gen = localLesson(course.subject || course.title, course.level);
       }
       if (!gen || !Array.isArray(gen.steps) || gen.steps.length === 0) throw new Error("bad shape");
       tidyLesson(gen);
       gen.title = lessonTitle;
 
       setGenState({ courseId, u, l, phase: "checking" });
+      if (!aiKey().trim()) await sleep(350);
       let flagged = await verifyLesson(gen);
 
       const graded = gen.steps.map((s, i) => ({ s, i })).filter((x) => x.s.type === "mcq" || x.s.type === "numeric");
@@ -1374,6 +1393,7 @@ ${graded
       if (genCancelRef.current) break;
       setGenQueue((q) => q.filter((k) => k !== courseId + ":" + t.u + ":" + t.l));
       await generateOne(courseId, t.u, t.l); // a failure marks the lesson FAILED and the queue moves on
+      await sleep(150);
     }
     setGenQueue([]);
     setGenState(null);
@@ -1473,6 +1493,7 @@ ${graded
 
   const setMark = (i, v) => setMarks((m) => { const nx = [...m]; nx[i] = v; return nx; });
   const recordHints = (i) => setHintMarks((h) => { const nx = [...h]; nx[i] = hintN + retries; return nx; });
+  const recordGain = (i, g) => setStepGains((a) => { const nx = [...a]; nx[i] = g; return nx; });
 
   const stepGain = () => Math.max(3, 15 - 5 * hintN - 5 * retries);
 
@@ -1494,6 +1515,7 @@ ${graded
       setSTotal((x) => x + 1);
       const g = stepGain();
       setLastGain(g);
+      recordGain(idx, g);
       setSXp((x) => x + g);
       setSRight((x) => x + 1);
     } else if (retries === 0) {
@@ -1529,6 +1551,7 @@ ${graded
     if (res.length > 0 && res.every((r) => r.pass)) {
       const g = stepGain();
       setLastGain(g);
+      recordGain(idx, g);
       setCorrect(true);
       setChecked(true);
       setMark(idx, "right");
@@ -1883,7 +1906,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                     <p className="kicker" style={{ margin: 0 }}>CONTINUE · {resume.course.title.toUpperCase()}</p>
                     <p style={{ margin: "6px 0 0", fontSize: 14.5, fontWeight: 700 }}>{resume.ls.title}</p>
                     <p className="mono" style={{ margin: "4px 0 0", fontSize: 10, color: "var(--pencil)", letterSpacing: ".06em" }}>
-                      {resume.allDone ? "COURSE DONE · REDO YOUR WEAKEST" : "NEXT LESSON"} · {resume.ls.steps.length} STEPS
+                      {resume.allDone ? "COURSE COMPLETE · REDO YOUR WEAKEST" : "NEXT LESSON"} · {resume.ls.steps.length} STEPS · ~{Math.max(2, Math.round(resume.ls.steps.length * 0.7))} MIN
                     </p>
                   </div>
                   <button className="primary" style={{ width: "auto", padding: "10px 14px", fontSize: 14 }} onClick={resumeStart}>Continue</button>
@@ -1983,6 +2006,14 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <div style={{ marginTop: 34 }}>
               <p className="kicker">MY COURSES</p>
               {library.courses.length > 3 && (
+                <input
+                  value={librarySearch}
+                  onChange={(e) => setLibrarySearch(e.target.value)}
+                  placeholder="Search courses and lessons…"
+                  style={{ width: "100%", marginTop: 8, background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 6, padding: "9px 12px", fontSize: 14 }}
+                />
+              )}
+              {library.courses.length > 3 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                   {["all", ...Array.from(new Set(library.courses.map((c) => c.subject)))].map((f) => (
                     <button key={f} className={"ghost" + (courseFilter === f ? " on" : "")} style={{ fontSize: 10, padding: "4px 8px" }} onClick={() => setCourseFilter(f)}>
@@ -1997,18 +2028,25 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 </p>
               )}
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-                {(courseFilter === "all" ? library.courses : library.courses.filter((c) => c.subject === courseFilter)).map((c) => {
+                {(courseFilter === "all" ? library.courses : library.courses.filter((c) => c.subject === courseFilter))
+                  .filter((c) => {
+                    const q = librarySearch.trim().toLowerCase();
+                    if (!q) return true;
+                    if (c.title.toLowerCase().includes(q) || c.subject.toLowerCase().includes(q)) return true;
+                    return c.units.some((u) => u.lessons.some((l) => l.title.toLowerCase().includes(q)));
+                  })
+                  .map((c) => {
                   const p = lessonProgressOf(c);
                   return (
                     <button
                       key={c.id}
                       className="card"
-                      onClick={() => { setActiveCourseId(c.id); setScreen("course"); }}
+                      onClick={() => { setActiveCourseId(c.id); setCoursePick(null); setScreen("course"); }}
                       style={{ padding: 14 }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontWeight: 800, fontSize: 16 }}>{c.title}</span>
-                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{p.done}/{p.total} DONE</span>
+                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{p.done}/{p.total} COMPLETED</span>
                       </div>
                       <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>
                         {c.level.toUpperCase()}{p.ready < p.total ? " · " + p.ready + "/" + p.total + " GENERATED" : ""}
@@ -2050,21 +2088,37 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   {u.lessons.map((l, li) => {
                     const score = (learner.courseProgress || {})[activeCourse.id + ":" + ui + ":" + li];
                     const ready = l.status === "ready";
+                    const picked = coursePick && coursePick.u === ui && coursePick.l === li;
                     return (
-                      <button
-                        key={li}
-                        onClick={() => ready && startLibraryLesson(activeCourse.id, ui, li)}
-                        style={{
-                          textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between",
-                          background: "var(--paper-2)", border: `1.5px solid ${ready ? "var(--ink)" : "var(--box)"}`,
-                          borderRadius: 6, padding: "12px 14px", color: ready ? "var(--ink)" : "var(--pencil)",
-                        }}
-                      >
-                        <span style={{ fontSize: 15, fontWeight: 600 }}>{l.title}</span>
-                        <span className="mono" style={{ fontSize: 11, color: score ? "var(--pen)" : ready ? "var(--ink)" : "var(--pencil)" }}>
-                          {score ? "✓ " + score : ready ? "START" : "TODO"}
-                        </span>
-                      </button>
+                      <div key={li}>
+                        <button
+                          onClick={() => ready && setCoursePick(picked ? null : { u: ui, l: li })}
+                          style={{
+                            width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between",
+                            background: "var(--paper-2)", border: `1.5px solid ${picked ? "var(--ink)" : ready ? "var(--ink)" : "var(--box)"}`,
+                            borderRadius: 6, padding: "12px 14px", color: ready ? "var(--ink)" : "var(--pencil)",
+                          }}
+                        >
+                          <span style={{ fontSize: 15, fontWeight: 600 }}>{l.title}</span>
+                          <span className="mono" style={{ fontSize: 11, color: score ? "var(--pen)" : ready ? "var(--ink)" : "var(--pencil)" }}>
+                            {score ? "✓ " + score : ready ? "START" : "TODO"}
+                          </span>
+                        </button>
+                        {picked && (
+                          <div className="card" style={{ marginTop: 6, padding: "10px 12px", boxShadow: "none" }}>
+                            <p className="mono" style={{ margin: 0, fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em" }}>
+                              {l.steps.length} STEPS · ~{Math.max(2, Math.round(l.steps.length * 0.7))} MIN
+                              {l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code"].includes(st.type)).length > 0
+                                ? " · " + l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code"].includes(st.type)).length + " GRADED"
+                                : ""}
+                              {score ? " · LAST " + score : ""}
+                            </p>
+                            <button className="primary" style={{ marginTop: 10, padding: "10px 12px", fontSize: 14 }} onClick={() => startLibraryLesson(activeCourse.id, ui, li)}>
+                              Start lesson
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -2419,6 +2473,26 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", marginTop: 8, letterSpacing: ".06em" }}>
                 {sTotal - sRight} MISS{sTotal - sRight > 1 ? "ES" : ""} ADDED TO SMART REVIEW · DUE TOMORROW
               </p>
+            )}
+            {lesson && sTotal > 0 && (
+              <div style={{ marginTop: 26, textAlign: "left", maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
+                <p className="kicker">XP LEDGER</p>
+                {lesson.steps.map((s, i) => {
+                  if (!["mcq", "numeric", "order", "output", "code"].includes(s.type)) return null;
+                  const m = marks[i];
+                  const assists = hintMarks[i] || 0;
+                  const label = (s.prompt || s.heading || s.type).slice(0, 36);
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px dashed var(--box)" }}>
+                      <span style={{ fontSize: 13, lineHeight: 1.4 }}>{label}{(s.prompt || "").length > 36 ? "…" : ""}</span>
+                      <span className="mono" style={{ fontSize: 11, whiteSpace: "nowrap", color: m === "right" ? "var(--pen)" : "var(--margin)" }}>
+                        {m === "right" ? "+" + (stepGains[i] || 0) + " XP" : "✗ +0"}
+                        {assists > 0 ? " · " + assists + " ASSIST" + (assists > 1 ? "S" : "") : ""}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
             {todayXp >= prefs.goal && (
               <p className="mono" style={{ fontSize: 12, color: "var(--pen)", marginTop: 10 }}>★ DAILY GOAL HIT · {todayXp}/{prefs.goal}</p>
