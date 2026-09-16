@@ -1,0 +1,32 @@
+# Prexis
+
+**Learn to code. By coding.** An adaptive, interactive teaching tool in a single HTML file — short Brilliant-style lessons where you write real code and the page grades it, wrapped in a learning engine that adapts to how you answer and a style system that adapts to how you like to read.
+
+## Run it
+
+Open `index.html` in any modern browser. No build step, no server. React, Babel and mathjs load from jsDelivr; everything else is in the file.
+
+## The intelligence
+
+- **Mastery model** — every graded step feeds a per-subject accuracy score (exponential moving average). Mastery bars appear on the home screen, and each subject's recommended difficulty is applied automatically the next time you study it.
+- **Smart review (spaced repetition)** — anything you get wrong becomes a review card. Cards come due on an expanding schedule (1 → 3 → 7 → 18 days); miss one and it resets to tomorrow. A "Smart Review" session assembles due cards into a lesson, and cards that survive three weeks graduate out.
+- **Adaptive AI lessons** — with an xAI key (Studio tab), Grok writes lessons live. Your mastery score and your recent misses are fed into every prompt, so new lessons reteach weak spots from a fresh angle. Generated code steps are executed against their own tests before shipping, and quiz answers are independently re-solved for verification.
+- **Hint ladder** — every graded step offers hints at an XP cost: MCQs eliminate a wrong option, code tasks reveal the solution line by line, ordering tasks place the next item, output/numeric tasks narrow the target.
+- **AI tutor** — after a wrong answer, "Why did I miss this?" asks Grok to name the specific misconception in two sentences.
+- **Interactive exploration** — explore steps plot the live function curve as you drag, Brilliant-style.
+
+## Your style
+
+The **Style** tab (and first-run setup) reshapes the whole app:
+
+- Four complete looks: **Notebook** (ruled paper), **Chalkboard** (dark board), **Terminal** (phosphor on black), **Gallery** (clean white, indigo)
+- Text size, page width (focus / wide), serif or sans headings
+- Daily XP goal with streaks and a today counter
+
+All progress, preferences, mastery and the review deck persist locally (host key-value storage when available, `localStorage` otherwise). No account, no server.
+
+## Step types
+
+`concept` · `mcq` · `numeric` · `order` · `output` (predict what code prints — it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve)
+
+Four curated JavaScript lessons and a seed course work fully offline with no API key.
