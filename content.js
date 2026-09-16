@@ -754,6 +754,276 @@ window.PREXIS_CONTENT = {
         },
       ],
     },
+    {
+      id: "money",
+      subject: "Personal finance",
+      level: "Beginner",
+      title: "Money that behaves",
+      units: [
+        {
+          title: "Foundations",
+          lessons: [
+            {
+              title: "Pay yourself first",
+              keywords: ["finance", "money", "budget", "budgeting", "saving", "savings", "spending"],
+              steps: [
+                { type: "concept", heading: "Allocation beats restriction", body: "Budgets built as punishment lists get abandoned by February. The ones that work run backwards: savings leaves your account first, automatically, and whatever remains is guilt-free to spend. The 50/30/20 split — needs, wants, saving — is a fine place to start." },
+                { type: "worked", heading: "Make $3,000 behave", problem: "Monthly take-home is $3,000. Set it up so saving happens without willpower.", steps: ["Split it 50/30/20: $1,500 needs, $900 wants, $600 saving.", "Automate the $600 out on payday — money you never see is money you never argue with.", "Rent eats $1,400 of the needs budget? Adjust the split by trimming wants first — the savings line moves last.", "Review once a month. A budget is a thermostat, not a cage."], takeaway: "Save first, automatically; spend what remains — never the reverse." },
+                { type: "numeric", prompt: "Income is $3,000 and you save 20% first. How many dollars are left to live on?", answer: 2400, tolerance: 0, explain: "3,000 − 600 = 2,400. That number is now guilt-free by design." },
+                { type: "mcq", prompt: "Budgets usually fail because…", options: ["The math is too hard", "They're built as punishment lists instead of automatic allocation", "Income is unpredictable", "The apps are bad"], answer: 1, explain: "Willpower loses to friction every month. Automation removes the decision entirely — the system does the discipline." },
+                { type: "numeric", prompt: "You cut a $6-a-day habit for 30 days. Monthly savings in dollars?", answer: 180, tolerance: 0, explain: "6 × 30 = 180 — real money, but notice it's less than one automated $600 transfer. Big flows beat small sacrifices." },
+                { type: "concept", heading: "Systems over sacrifice", body: "One automated transfer outworks a hundred small daily denials. Set the flow once, then spend your attention on earning more, not on skipping coffee." },
+              ],
+            },
+            {
+              title: "The emergency fund",
+              keywords: ["finance", "emergency", "fund", "savings", "buffer", "cushion", "crisis"],
+              steps: [
+                { type: "concept", heading: "Crises become inconveniences", body: "An emergency fund converts a broken transmission from a debt spiral into an annoying Tuesday. Target three to six months of ESSENTIAL expenses, parked somewhere boring you can reach tomorrow." },
+                { type: "worked", heading: "Size yours in two minutes", problem: "Rent $1,200, food $400, utilities $150, transport $250. What's the target?", steps: ["Essentials only: 1,200 + 400 + 150 + 250 = $2,000 a month. Streaming and restaurants don't count — you'd cut those in a crisis.", "Three-month floor: $6,000. Six-month comfort: $12,000.", "Building at $300 a month, the floor takes 20 months — fine. The fund is a marathon with a finish line.", "Until it's funded, it outranks investing: the fund is what keeps a crisis from forcing you to sell investments at the worst moment."], takeaway: "Essentials × months — not income × months." },
+                { type: "numeric", prompt: "Essential expenses are $2,000 a month. What's a three-month emergency fund in dollars?", answer: 6000, tolerance: 0, explain: "2,000 × 3 = 6,000. Six months doubles it for shakier income." },
+                { type: "mcq", prompt: "Where should the emergency fund live?", options: ["Stocks, so it grows", "A savings account you can reach tomorrow", "Cash under the mattress", "A 5-year locked certificate"], answer: 1, explain: "Its job is availability, not growth. Stocks can be down 30% the week the transmission dies — that's the exact scenario the fund exists for." },
+                { type: "numeric", prompt: "Saving $250 a month toward a $6,000 fund — how many months to get there?", answer: 24, tolerance: 0, explain: "6,000 ÷ 250 = 24. Slow is fine; the direction is what matters." },
+                { type: "concept", heading: "Refill before extras", body: "When you use the fund — and someday you will — refilling it comes before vacations and upgrades. It only protects you at full strength." },
+              ],
+            },
+            {
+              title: "Good debt, bad debt",
+              keywords: ["finance", "debt", "credit", "card", "interest", "loan", "score"],
+              steps: [
+                { type: "concept", heading: "Debt is rented money", body: "The interest rate is the rent. A 5% loan that buys an education or a home can be a tool; a 20% card balance renting last month's dinners is a leak. Judge debt by its rate and what it bought." },
+                { type: "mcq", prompt: "You hold an 18% card balance and a 5% student loan. A spare $200 a month goes to…", options: ["Split evenly, it's fairer", "The card — highest rate first", "The student loan — it's bigger", "Savings instead"], answer: 1, explain: "Paying an 18% debt is a guaranteed 18% return. Nothing safe comes close, and 'fair' costs you real money." },
+                { type: "worked", heading: "The minimum-payment trap", problem: "A $3,000 card balance at 20% APR asks for a $60 minimum. What actually happens if you pay it?", steps: ["One month's interest: 3,000 × 20% ÷ 12 = $50.", "Of your $60 payment, $50 is rent on the debt — only $10 touches the balance.", "At that rate the balance barely moves for years; minimums are designed to keep you, not free you.", "Pay $150 instead and $100 hits the principal every month — the debt dies in about two years."], takeaway: "Minimums rent the debt; real principal payments kill it." },
+                { type: "numeric", prompt: "A $3,000 balance at 20% APR: roughly how many dollars of interest accrue in ONE month?", answer: 50, tolerance: 1, explain: "3,000 × 0.20 ÷ 12 = 50. Seeing the monthly rent in dollars is what makes the rate real." },
+                { type: "order", prompt: "Attack multiple debts in the order that saves the most.", items: ["List every debt with its interest rate", "Pay minimums on all of them", "Throw every spare dollar at the highest rate", "When it dies, roll its payment into the next one"], explain: "The avalanche: each killed debt makes the next one die faster. The rolling payment is the engine.", codeItems: false },
+                { type: "concept", heading: "Credit scores are boring on purpose", body: "On-time payments plus low utilization, repeated for years — that's the whole trick. No hacks required, and nothing exotic beats simply being reliably dull." },
+              ],
+            },
+          ],
+        },
+        {
+          title: "Growing it",
+          lessons: [
+            {
+              title: "Investing without drama",
+              keywords: ["finance", "investing", "index", "funds", "stocks", "market", "compound", "retirement"],
+              steps: [
+                { type: "concept", heading: "Own the average, cheaply", body: "Nobody reliably picks winning stocks — but anyone can own a slice of the whole market through an index fund and let decades of compounding work. The two enemies are fees and panic, and both are under your control." },
+                { type: "explore", heading: "Fees eat quietly", body: "Drag the annual fee on a $10,000 investment growing 7% for 30 years. A 'small' 2% fee isn't small — watch it consume decades of compounding.", expr: "10000*(1.07-f)^30", variable: "f", min: 0, max: 0.03, stepSize: 0.001, label: "annual fee", valueLabel: "value after 30 years" },
+                { type: "numeric", prompt: "Rule of 72: at 8% average growth, roughly how many years for money to double?", answer: 9, tolerance: 0.5, explain: "72 ÷ 8 = 9. Thirty-six years is four doublings — 1× becomes 16×. That's the case for starting now." },
+                { type: "worked", heading: "What panic costs", problem: "Your $10,000 drops 30% in a crash. Sell or sit?", steps: ["Markets fall hard roughly once a decade — that risk IS why they pay better than savings accounts.", "Selling turns a paper loss into a real one: your 10,000 is now genuinely 7,000, and you're out of the game for the recovery.", "Historically, broad markets that crashed went on to new highs within a few years — but only for the people still in them.", "The investor who does nothing usually beats the investor who reacts."], takeaway: "Time in the market beats timing the market." },
+                { type: "mcq", prompt: "The biggest predictor of an ordinary investor's long-run outcome is…", options: ["Picking hot stocks", "Starting early and never stopping", "Following financial news closely", "Trading at the right moments"], answer: 1, explain: "Contribution years compound. The habit — automatic monthly buying, decade after decade — swamps every clever move." },
+                { type: "concept", heading: "Automate the buying too", body: "A fixed amount invested every month (dollar-cost averaging) buys more shares when prices are low and fewer when high — and removes the temptation to guess. Boring, again, wins." },
+              ],
+            },
+            {
+              title: "Big purchases, clear eyes",
+              keywords: ["finance", "rent", "buy", "house", "car", "mortgage", "purchase", "ownership"],
+              steps: [
+                { type: "concept", heading: "The sticker lies", body: "Big purchases drag hidden costs behind them: interest, insurance, maintenance, and the returns the money could have earned elsewhere. Compare total monthly cost of ownership, never price tags." },
+                { type: "worked", heading: "What the car really costs", problem: "A $28,000 car on a 5-year loan at 7%. What's the honest monthly number?", steps: ["The loan payment alone: about $554 a month.", "Now the passengers: insurance ~$120, fuel ~$150, maintenance ~$80.", "Honest total: roughly $904 a month — 63% more than the payment the dealer quoted.", "Run this BEFORE falling in love with the car; the loan officer won't run it for you."], takeaway: "The purchase costs the payment plus everything it drags along." },
+                { type: "numeric", prompt: "Payment $554, insurance $120, fuel $150, upkeep $80. Total monthly cost in dollars?", answer: 904, tolerance: 0, explain: "The all-in number is the one your budget actually feels." },
+                { type: "mcq", prompt: "“Renting is throwing money away.” That framing is…", options: ["Always true", "Never true", "False as stated — rent buys flexibility and skips ownership costs; compare total costs to total costs", "True only in big cities"], answer: 2, explain: "Owners 'throw away' interest, taxes, insurance and repairs. Sometimes buying wins, sometimes renting does — only the full comparison tells you which." },
+                { type: "numeric", prompt: "Houses need roughly 1% of their value in yearly maintenance. On a $300,000 home, that's how many dollars a year?", answer: 3000, tolerance: 0, explain: "$250 a month, forever, that renters never see — one of several lines the mortgage payment doesn't mention." },
+                { type: "concept", heading: "The scare test", body: "If the honest all-in monthly number makes you flinch, the purchase is too big — no matter what the lender approved. Lenders approve maximums; budgets approve purchases." },
+              ],
+            },
+            {
+              title: "Insurance and taxes, calmly",
+              keywords: ["finance", "insurance", "taxes", "tax", "brackets", "deductible", "premium"],
+              steps: [
+                { type: "concept", heading: "Two subjects, one idea each", body: "Insurance: pay a small certain cost to delete a ruinous one — insure catastrophes, never annoyances. Taxes: brackets are marginal, so a raise can never make you take home less. Most money fear dissolves with those two sentences." },
+                { type: "worked", heading: "The bracket myth, killed", problem: "Your raise 'pushes you into the 30% bracket.' Did the raise backfire?", steps: ["Brackets tax slices, not your whole income. Say 20% applies below $50,000 and 30% above.", "On a $52,000 income, the first $50,000 is still taxed at 20% — $10,000.", "Only the $2,000 slice above the line pays 30% — $600.", "Total $10,600, not $15,600. The raise put money in your pocket, as raises always do."], takeaway: "Brackets tax the slice above the line, never the whole pie." },
+                { type: "numeric", prompt: "20% below $50,000 and 30% above. Total tax on $52,000, in dollars?", answer: 10600, tolerance: 0, explain: "50,000 × 0.20 + 2,000 × 0.30 = 10,000 + 600." },
+                { type: "mcq", prompt: "Which of these deserves full insurance coverage?", options: ["A cracked phone screen", "Concert tickets", "The liability if your car injures someone", "A late package"], answer: 2, explain: "Liability can be ruin — that's what insurance is FOR. The small stuff you self-insure with the emergency fund and come out ahead on average." },
+                { type: "mcq", prompt: "Raising your deductible generally…", options: ["Raises your premium", "Lowers your premium — you keep the small risks yourself", "Is not allowed", "Changes nothing"], answer: 1, explain: "You're telling the insurer 'I'll handle the annoyances, you handle the catastrophes' — the correct division of labor, priced accordingly." },
+                { type: "concept", heading: "The annual half hour", body: "Once a year: check tax withholding, deductibles, and coverage against your actual life. Thirty minutes, and it routinely finds real money." },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "sheets",
+      subject: "Spreadsheets",
+      level: "Beginner",
+      title: "Spreadsheet thinking",
+      units: [
+        {
+          title: "Cells and formulas",
+          lessons: [
+            {
+              title: "A grid of little machines",
+              keywords: ["spreadsheet", "spreadsheets", "excel", "sheets", "cells", "formulas", "grid", "basics"],
+              steps: [
+                { type: "concept", heading: "Cells compute", body: "A cell holds either a value or a formula. Formulas start with = and reference other cells by address: =A1*A2. Change an input and everything downstream recomputes instantly — that recomputation is the entire superpower." },
+                { type: "worked", heading: "Your first living model", problem: "Price in A1 is 20, quantity in A2 is 3. Build a total that stays correct.", steps: ["In A3, type =A1*A2 — not 60. The formula shows 60, but it STORES the relationship.", "Change A2 to 5: A3 becomes 100 by itself. No re-typing, no stale numbers.", "That's the discipline: type inputs once, compute everything else.", "A spreadsheet where results are typed by hand is just graph paper with extra steps."], takeaway: "Never type a number you could compute — reference it." },
+                { type: "numeric", prompt: "A1 holds 20, A2 holds 3, and A3 holds =A1*A2. What does A3 display?", answer: 60, tolerance: 0, explain: "The formula multiplies whatever those cells hold right now — change either and A3 follows." },
+                { type: "mcq", prompt: "What makes a cell's content a formula instead of text?", options: ["Making it bold", "Starting it with =", "Ending it with a semicolon", "Coloring the cell"], answer: 1, explain: "The leading = is the switch. Without it, A1*A2 is just nine characters of text." },
+                { type: "numeric", prompt: "B1 = 100, B2 = =B1*0.2, B3 = =B1-B2. What does B3 show?", answer: 80, tolerance: 0, explain: "B2 computes 20, then B3 computes 100 − 20. Chains of small formulas beat one giant one." },
+                { type: "concept", heading: "Label your inputs", body: "Put 'Tax rate' next to the cell that holds it. Future-you, opening this sheet in six months, is the most important user you'll ever design for." },
+              ],
+            },
+            {
+              title: "References that copy right",
+              keywords: ["spreadsheet", "excel", "sheets", "references", "absolute", "relative", "dollar", "copy", "fill"],
+              steps: [
+                { type: "concept", heading: "References move — unless you pin them", body: "Copy =A2*B2 down one row and it becomes =A3*B3: references are relative by default, which is what lets one formula fill a thousand rows. A dollar sign pins a part in place: $E$1 never moves." },
+                { type: "worked", heading: "The tax column", problem: "Column B holds prices; E1 holds the tax rate. Fill column C with the tax for every row.", steps: ["In C2, write =B2*$E$1 — B2 relative, the rate pinned.", "Copy it down: row by row it becomes =B3*$E$1, =B4*$E$1… each row's price, one shared rate.", "Without the $s, row 3 would grab E2 — an empty cell — and the errors would march quietly down the column.", "Change E1 once and every row's tax updates. One input, one truth."], takeaway: "Pin what's shared, let the row data float." },
+                { type: "mcq", prompt: "=B2*E1 copied from row 2 down to row 3 becomes…", options: ["=B3*E2", "=B2*E1", "=B3*E1", "=B2*E2"], answer: 0, explain: "Everything unpinned shifts with the copy — BOTH references moved down one row. That's the bug the $ exists to prevent." },
+                { type: "mcq", prompt: "To keep the rate in E1 fixed while filling down, write…", options: ["=B2*$E$1", "=$B$2*E1", "=B2*E1, then paste twice", "=B$2*$E1"], answer: 0, explain: "Pin the shared cell, leave the per-row cell free. Pinning B2 instead would multiply every row by row 2's price." },
+                { type: "order", prompt: "Fill a computed column the professional way.", items: ["Write the formula once in the top data row", "Pin the shared cells with $", "Drag or copy it down the column", "Spot-check the last row's references"], explain: "The last-row check takes five seconds and catches every misplaced pin.", codeItems: false },
+                { type: "concept", heading: "Broken copies tell you why", body: "When a filled formula misbehaves, click it and read where its references landed. The grid always shows you exactly what it did — spreadsheet debugging is mostly just looking." },
+              ],
+            },
+            {
+              title: "Functions do the heavy lifting",
+              keywords: ["spreadsheet", "excel", "sheets", "functions", "sum", "average", "count", "min", "max", "range"],
+              steps: [
+                { type: "concept", heading: "Ranges answer questions", body: "A1:A10 names ten cells at once, and functions consume ranges whole: =SUM(A1:A10), =AVERAGE(...), =MAX(...), =COUNT(...). One range, many questions." },
+                { type: "numeric", prompt: "Four cells hold 4, 8, 6, 2. What does =AVERAGE of that range return?", answer: 5, tolerance: 0, explain: "(4+8+6+2) ÷ 4 = 5." },
+                { type: "worked", heading: "A report in four formulas", problem: "Daily sales live in B2:B31. Build the monthly summary.", steps: ["Total: =SUM(B2:B31).", "Typical day: =AVERAGE(B2:B31).", "Best day: =MAX(B2:B31).", "Days recorded: =COUNT(B2:B31) — and if that says 27 in a 30-day month, you've just found three missing entries. Summaries audit the data for free."], takeaway: "Point functions at the range; let them do the arithmetic AND the auditing." },
+                { type: "mcq", prompt: "=COUNT over cells holding 3, “dog”, 7, a blank, 5 returns…", options: ["5", "4", "3", "2"], answer: 2, explain: "COUNT counts numbers only: 3, 7, 5. (COUNTA would count the text too — different tool, different question.)" },
+                { type: "numeric", prompt: "=SUM over cells holding 10, 20, 30, 40?", answer: 100, tolerance: 0, explain: "Ranges grow with your data — insert rows inside the range and the SUM stretches to keep them." },
+                { type: "concept", heading: "Functions compose", body: "=SUM(A:A)/COUNT(A:A) rebuilds AVERAGE from parts. Knowing the pieces means you can construct answers no single function offers." },
+              ],
+            },
+          ],
+        },
+        {
+          title: "Thinking in tables",
+          lessons: [
+            {
+              title: "IF makes it decide",
+              keywords: ["spreadsheet", "excel", "sheets", "if", "logic", "conditional", "countif", "sumif"],
+              steps: [
+                { type: "concept", heading: "Formulas with opinions", body: "=IF(test, then, else) lets a cell decide: =IF(B2>100, “big”, “small”). Their cousins COUNTIF and SUMIF aggregate only the rows matching a condition — decisions at column scale." },
+                { type: "worked", heading: "Flag the late invoices", problem: "Column C holds days outstanding. Flag the late ones and count them.", steps: ["In D2: =IF(C2>30, “LATE”, “OK”) — then fill it down the column.", "Every row now labels itself, and relabels itself the moment C changes.", "Count the damage in one cell: =COUNTIF(D:D, “LATE”).", "Sum what's owed on them: =SUMIF(D:D, “LATE”, B:B) adds column B only where D says LATE."], takeaway: "IF labels the rows; COUNTIF and SUMIF read the labels." },
+                { type: "mcq", prompt: "=IF(B2>=50, “PASS”, “FAIL”) with B2 holding exactly 50 shows…", options: ["PASS", "FAIL", "50", "An error"], answer: 0, explain: ">= includes the boundary. Off-by-one conditions are the classic spreadsheet bug — read the operator like a lawyer." },
+                { type: "numeric", prompt: "A label column holds “LATE” 12 times among 40 rows. What does =COUNTIF(range, “LATE”) return?", answer: 12, tolerance: 0, explain: "It counts matches only — the other 28 rows simply don't qualify." },
+                { type: "numeric", prompt: "SUMIF adds amounts where status is “paid”. The paid amounts are 200, 450 and 350. Result?", answer: 1000, tolerance: 0, explain: "Conditional sums answer real business questions: how much of the money is actually in?" },
+                { type: "concept", heading: "Know when IF has lost", body: "An IF inside an IF inside an IF is unreadable by Thursday. Three levels deep means you want a lookup table instead — one column of cases, one of answers." },
+              ],
+            },
+            {
+              title: "Sort, filter, one clean table",
+              keywords: ["spreadsheet", "excel", "sheets", "sort", "filter", "table", "data", "rows", "columns"],
+              steps: [
+                { type: "concept", heading: "The one-table rule", body: "One row = one record. One column = one attribute. No merged cells, no blank rows, no totals living inside the data. Keep that rectangle clean and sorting, filtering and pivots all just work — break it and every tool misbehaves." },
+                { type: "mcq", prompt: "Which of these quietly breaks sorting?", options: ["Bold column headers", "Merged title cells and blank rows inside the data", "Having many rows", "Lowercase text"], answer: 1, explain: "Sort treats blank rows as table boundaries and refuses to move merged cells. The damage appears later, as scrambled rows nobody can explain." },
+                { type: "worked", heading: "Untangle a messy sheet", problem: "You inherit a sheet with a merged title, gaps between sections, and a totals row in the middle. Make it usable.", steps: ["Unmerge everything; move the title above the table or into the tab name.", "One header row, then pure data — delete the decorative blank rows.", "Evict the totals: summaries live BELOW the rectangle or on their own sheet.", "Now sort, filter and pivot all work — the mess wasn't the data, it was the formatting living inside it."], takeaway: "Data lives in a clean rectangle; presentation lives somewhere else." },
+                { type: "order", prompt: "Answer “who are our top five customers?” fast.", items: ["Confirm the table is one clean rectangle", "Sort by amount, largest first", "Read the top five rows", "Filter by region when they ask the follow-up"], explain: "On a clean table this is a ten-second question. On a messy one it's an afternoon.", codeItems: false },
+                { type: "mcq", prompt: "Filters hide rows or delete them?", options: ["Delete them", "Hide them — the data is all still there", "Move them to another sheet", "Depends on the app"], answer: 1, explain: "A filter is a lens, not a knife. Clear it and everything returns — which also means a SUM may include rows you've filtered out of sight." },
+                { type: "concept", heading: "Totals are parasites", body: "A totals row inside the data gets sorted into the middle, double-counted by SUMs, and swallowed by pivots. Keep summaries outside the rectangle, always." },
+              ],
+            },
+            {
+              title: "Pivot thinking",
+              keywords: ["spreadsheet", "excel", "sheets", "pivot", "tables", "summarize", "group", "report"],
+              steps: [
+                { type: "concept", heading: "“X by Y” is a pivot", body: "Total sales BY region. Average ticket BY month. Any question with 'by' in it is a pivot table: drag the grouping field to Rows, the number to Values, done. It's GROUP BY for people who don't write SQL." },
+                { type: "worked", heading: "Sales by region in four drags", problem: "A thousand rows of raw sales: date, region, amount. The boss wants totals by region, by month.", steps: ["Insert a pivot from the clean rectangle.", "Drag Region to Rows — one line per region appears.", "Drag Amount to Values as Sum — the totals fill in.", "Drag Month to Columns and the report becomes a region × month matrix. Four drags, zero formulas."], takeaway: "Say the sentence — “amount by region by month” — and you've said the pivot layout." },
+                { type: "mcq", prompt: "Which question is pivot-shaped?", options: ["What's in cell F13?", "What are total sales by month, by region?", "Is this cell bold?", "How do I merge two cells?"], answer: 1, explain: "Grouping + aggregating across many rows is exactly what pivots exist for. Single-cell questions never are." },
+                { type: "numeric", prompt: "The North region's rows hold 120, 80 and 200. What does the pivot's Sum show for North?", answer: 400, tolerance: 0, explain: "The pivot did =SUMIF for you — for every region at once, with none of the formulas." },
+                { type: "order", prompt: "From raw rows to an answer.", items: ["Clean the source into one rectangle", "Insert a pivot table from it", "Drag the grouping field to Rows", "Drag the number to Values as Sum"], explain: "Step one is where pivots are won or lost — a pivot on a messy table confidently reports nonsense.", codeItems: false },
+                { type: "concept", heading: "Refresh, don't rebuild", body: "New rows in the source? Refresh the pivot and the report updates. People who recompute summaries by hand every week are doing the machine's job on the machine's behalf." },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "writing",
+      subject: "Writing",
+      level: "Beginner",
+      title: "Writing that works",
+      units: [
+        {
+          title: "Sentences and paragraphs",
+          lessons: [
+            {
+              title: "Cut the fog",
+              keywords: ["writing", "clarity", "concise", "editing", "plain", "words", "sentences"],
+              steps: [
+                { type: "concept", heading: "Fog has a recipe", body: "Foggy writing buries the actor and the action: verbs become nouns (“made a decision”), padding creeps in (“in order to”), and the doer hides behind passive voice. Clear writing is the reverse: someone does something, in as few words as that takes." },
+                { type: "worked", heading: "Defog one sentence", problem: "“It is important to note that a decision was made by the team to implement a delay to the launch.” Fix it.", steps: ["Cut the throat-clearing: “It is important to note that” says nothing — delete.", "Find the actor hiding in the passive: the team.", "Un-noun the verbs: “made a decision to implement a delay” is just “delayed”.", "Result: “The team delayed the launch.” Eighteen words became five, and got stronger."], takeaway: "Who did what — then stop." },
+                { type: "mcq", prompt: "Pick the strongest sentence.", options: ["A delay was implemented by us", "We delayed the launch", "It was decided that launching later was optimal", "The launch experienced a delay"], answer: 1, explain: "Actor, verb, object. The others hide who decided — which readers notice, and quietly distrust." },
+                { type: "mcq", prompt: "“In order to” should almost always become…", options: ["“so as to”", "“to”", "“for the purpose of”", "“with a view to”"], answer: 1, explain: "Two free words in every sentence that carries the phrase. Padding compounds like interest, in the wrong direction." },
+                { type: "order", prompt: "An editing pass that works.", items: ["Write the ugly first draft fast", "Cut every word that adds nothing", "Swap weak verb phrases for strong verbs", "Read it aloud once"], explain: "Drafting and editing are different mental modes — doing them simultaneously does both badly.", codeItems: false },
+                { type: "concept", heading: "Short is generous", body: "Concise writing isn't dumbed down — it's the writer doing the work so the reader doesn't have to. Every deleted word is a small gift." },
+              ],
+            },
+            {
+              title: "One idea per paragraph",
+              keywords: ["writing", "paragraphs", "structure", "topic", "sentences", "flow"],
+              steps: [
+                { type: "concept", heading: "Paragraphs are units of thought", body: "One paragraph, one idea. The first sentence states it; the rest support it. Readers skim first sentences — so read yours in sequence, alone: if they don't carry the argument, the piece has no skeleton." },
+                { type: "order", prompt: "The anatomy of a strong paragraph.", items: ["State the point", "Give the evidence or example", "Handle the obvious objection", "Hand off to the next point"], explain: "Not every paragraph needs all four — but the point always comes first, because skimmers only get that far.", codeItems: false },
+                { type: "worked", heading: "Fix a wandering paragraph", problem: "One paragraph discusses the budget, then the timeline, then hiring. Repair it.", steps: ["Name what's crammed in: three separate ideas sharing one paragraph.", "Give each its own paragraph — a wandering paragraph is several paragraphs in a trench coat.", "Write each one's topic sentence so it can stand alone.", "Reorder them so each 'so what?' is answered by what follows."], takeaway: "When a paragraph wanders, split it — don't polish it." },
+                { type: "mcq", prompt: "Readers of workplace writing mostly read…", options: ["Every word, carefully", "First sentences, headings, and anything bold", "The middle paragraphs", "The attachments"], answer: 1, explain: "Write for how people actually read: front-load every paragraph, and make the skeleton carry the message." },
+                { type: "mcq", prompt: "Pick the best topic sentence.", options: ["There are several considerations.", "This section discusses timing.", "Shipping in March costs us the holiday season.", "As mentioned above…"], answer: 2, explain: "It makes a claim someone could disagree with — which is exactly what earns the reader's next thirty seconds." },
+                { type: "concept", heading: "The “so what” test", body: "After each paragraph, ask “so what?” — the next paragraph should be the answer. Where it isn't, you've found the reorder your draft needs." },
+              ],
+            },
+            {
+              title: "Emails people answer",
+              keywords: ["writing", "email", "emails", "subject", "request", "reply", "work", "inbox"],
+              steps: [
+                { type: "concept", heading: "An email is one request", body: "The subject line names the ask and the deadline. The first line makes the request. Everything below is supporting detail for whoever wants it. Bury the ask in paragraph three and you've written a mystery, not a message." },
+                { type: "worked", heading: "Rewrite the ramble", problem: "A four-paragraph update that eventually wonders about the venue decision. Make it answerable.", steps: ["Subject: “Decision needed by Fri: venue A or B?” — the whole email in one line.", "First line: “Can you pick a venue by Friday? Details below.”", "Bullets: A — $2,000, holds 80. B — $2,600, holds 120.", "Close with a default: “If I don't hear by Friday, I'll book A.” Now even silence produces progress."], takeaway: "Ask in line one; details below; deadline and default explicit." },
+                { type: "mcq", prompt: "Best subject line?", options: ["Hello", "Quick question", "Approve venue budget by Friday?", "Following up"], answer: 2, explain: "It carries the ask AND the deadline before the email is even opened — the recipient can triage it from the inbox list." },
+                { type: "mcq", prompt: "How many asks per email?", options: ["As many as needed", "One — or a numbered list announced up front", "Zero; meetings are better", "At least three for efficiency"], answer: 1, explain: "Multiple buried asks get one answered and the rest forgotten. If you truly need three, number them and say 'three requests' in line one." },
+                { type: "order", prompt: "Assemble a reply-friendly email.", items: ["Subject states the ask and the deadline", "First line makes the request", "Bullets carry the supporting details", "Close with the default if no reply comes"], explain: "The default is the secret weapon: it converts non-responses from blockers into decisions.", codeItems: false },
+                { type: "concept", heading: "Make yes cheap", body: "The easier the yes, the faster it arrives. Propose, don't open-endedly inquire: “Shall I book A?” beats “thoughts on venues?” every single time." },
+              ],
+            },
+          ],
+        },
+        {
+          title: "Bigger pieces",
+          lessons: [
+            {
+              title: "Structure before sentences",
+              keywords: ["writing", "outline", "structure", "argument", "document", "memo", "bluf"],
+              steps: [
+                { type: "concept", heading: "Documents fail at the skeleton", body: "Weak documents aren't weak because of their sentences — the order is wrong. Lead with the conclusion (BLUF: bottom line up front), then the reasons, then the detail. Readers decide how deep to go; every depth gets a complete story." },
+                { type: "order", prompt: "Build a memo in the order pros do.", items: ["Write the one-sentence conclusion first", "List the three reasons that support it", "Attach evidence under each reason", "Only then polish the sentences"], explain: "Polishing sentences on a broken skeleton is repainting a house with no foundation.", codeItems: false },
+                { type: "mcq", prompt: "Where does the recommendation go in a business memo?", options: ["Last — build to the reveal", "First — readers choose their own depth", "In the middle, cushioned", "In a separate email"], answer: 1, explain: "The mystery-novel structure serves detective fiction, not decisions. Executives read the first paragraph and skim the rest — put the answer where they'll be." },
+                { type: "worked", heading: "A proposal in six lines", problem: "You need a one-page proposal by lunch. Outline it.", steps: ["Line 1 — the conclusion: “We should switch supplier to X, saving $40k a year.”", "Lines 2–4 — three reasons, one line each: cost, reliability, terms.", "Line 5 — the risk and its mitigation, honestly: “Switching costs ~$5k; paid back in two months.”", "Line 6 — the ask: “Approve by Friday to hit the Q4 window.” The document is now 80% done and 100% structured."], takeaway: "A finished outline is a draft wearing bullet points." },
+                { type: "mcq", prompt: "“Context, context, context… conclusion at the very end” best suits…", options: ["Busy executives", "Detective novels", "Status updates", "All memos"], answer: 1, explain: "Suspense is a feature in fiction and a bug in business writing." },
+                { type: "concept", heading: "Writing is thinking, exposed", body: "If the outline won't hold together, no quantity of nice sentences will save it — and discovering that in six bullet lines costs an hour less than discovering it in six polished paragraphs." },
+              ],
+            },
+            {
+              title: "Write for the skimmer",
+              keywords: ["writing", "headings", "formatting", "bullets", "scannable", "readers", "layout"],
+              steps: [
+                { type: "concept", heading: "Format is information", body: "Headings, bullets, and bolding aren't decoration — they're a second, faster copy of your argument. A skimmer should reconstruct your whole case from headings and bolds alone. Design for that reader; the careful reader gets everything anyway." },
+                { type: "mcq", prompt: "Which heading actually helps a skimmer?", options: ["Section 3", "Additional considerations", "Costs: $40k now, $12k a year after", "Miscellaneous"], answer: 2, explain: "Headings that state findings turn the document's skeleton into its summary. Topic labels make the reader dig for what you already know." },
+                { type: "worked", heading: "Rescue a wall of text", problem: "A dense one-page block of prose nobody finishes. Make it scannable.", steps: ["Split it into one-idea paragraphs and read the first sentences alone — fix any that don't carry.", "Turn the list hiding in the prose (“first… also… finally…”) into actual bullets.", "Rewrite headings to state findings, not topics.", "Bold exactly one thing: the decision. Bold ten things and you've bolded none."], takeaway: "Give the skimmer a complete argument in headings, bullets, and one bold line." },
+                { type: "order", prompt: "The scannability pass, in order.", items: ["Break the wall into one-idea paragraphs", "Make headings state findings, not topics", "Bullet the parallel items", "Bold one decision, not ten"], explain: "Same law as visual design: emphasis is a budget, and spending it everywhere spends it nowhere.", codeItems: false },
+                { type: "mcq", prompt: "Over-bolding a document…", options: ["Emphasizes everything", "Emphasizes nothing", "Is required in memos", "Helps search engines"], answer: 1, explain: "Emphasis works by contrast. The tenth bold phrase costs the first nine their power." },
+                { type: "concept", heading: "Respect is measured in seconds", body: "Every formatting choice either saves the reader time or spends it. Scannable writing is simply courtesy, made visible." },
+              ],
+            },
+            {
+              title: "Revise like an editor",
+              keywords: ["writing", "revision", "editing", "drafts", "feedback", "rewrite", "proofread"],
+              steps: [
+                { type: "concept", heading: "Two hats, never together", body: "Drafting wants speed and zero judgment; editing wants cold ruthlessness. Wearing both hats at once produces slow drafts AND soft edits. Write ugly and fast — then return later as the editor who owes the writer nothing." },
+                { type: "order", prompt: "Revision passes, largest problems first.", items: ["Structure: is the order right?", "Argument: does every claim have support?", "Sentences: cut fog, strengthen verbs", "Proof: read it aloud, slowly, once"], explain: "Sentence-polishing a paragraph you'll delete in the structure pass is the most common way to waste an editing hour.", codeItems: false },
+                { type: "mcq", prompt: "The best first-draft strategy is…", options: ["Polish each sentence before writing the next", "Write it ugly and fast, edit later", "Start with the formatting", "Wait for inspiration"], answer: 1, explain: "A complete bad draft can be fixed this afternoon. A perfect first paragraph attached to nothing cannot." },
+                { type: "worked", heading: "The 20% cut", problem: "A 200-word paragraph that feels fine. Cut a fifth of it without losing meaning.", steps: ["Hunt the hedges first: very, quite, rather, “I think”, “it seems” — delete them all.", "Collapse duplicates: writers say important things twice; keep the better one, in slightly different words.", "Split any sentence carrying two ideas; one of them usually turns out disposable.", "Result: ~160 words, and every surviving sentence hits harder. The cut didn't shrink the meaning — it concentrated it."], takeaway: "Every draft ships 20% lighter than it arrived, and better for it." },
+                { type: "mcq", prompt: "Reading your draft aloud catches…", options: ["Nothing — sentences are visual", "Rhythm problems, missing words, and fog your eyes skip over", "Only typos", "Grammar rules"], answer: 1, explain: "Your eye autocorrects; your ear doesn't. It's the cheapest professional edit that exists." },
+                { type: "concept", heading: "Ask for confusion, not compliments", body: "“Did you like it?” gets politeness. “Where did you slow down or get lost?” gets the map of exactly what to fix. Readers always know where the fog is — they just need permission to say so." },
+              ],
+            },
+          ],
+        },
+      ],
+    },
   ],
 
   /* Home-screen quick picks: label + direct pointer into the courses above. */
@@ -767,5 +1037,8 @@ window.PREXIS_CONTENT = {
     { label: "Percentages", course: "math", u: 0, l: 0, topic: "Percentages" },
     { label: "Probability", course: "math", u: 1, l: 1, topic: "Probability" },
     { label: "Bad arguments", course: "thinking", u: 0, l: 0, topic: "Critical thinking" },
+    { label: "Personal finance", course: "money", u: 0, l: 0, topic: "Personal finance" },
+    { label: "Spreadsheets", course: "sheets", u: 0, l: 0, topic: "Spreadsheets" },
+    { label: "Clear writing", course: "writing", u: 0, l: 0, topic: "Writing" },
   ],
 };
