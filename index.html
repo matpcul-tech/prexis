@@ -819,9 +819,14 @@ function Prexis() {
   const [sLevel, setSLevel] = useState("Beginner");
   const [drafting, setDrafting] = useState(false);
   const [genState, setGenState] = useState(null);
+  const [genQueue, setGenQueue] = useState([]);
+  const [genErrors, setGenErrors] = useState({});
+  const genCancelRef = useRef(false);
   const [expandedId, setExpandedId] = useState("core-js");
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [backupText, setBackupText] = useState("");
+  const [backupMsg, setBackupMsg] = useState("");
   const [activeCourseId, setActiveCourseId] = useState(null);
   const [apiKey, setApiKey] = useState("");
   const [modelId, setModelId] = useState(DEFAULT_MODEL);
@@ -919,6 +924,50 @@ function Prexis() {
   const persistPrefs = async (next) => { setPrefs(next); try { await storage.set(PREFS_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistSkills = async (next) => { setSkills(next); skillsRef.current = next; try { await storage.set(SKILLS_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistDeck = async (next) => { setDeck(next); deckRef.current = next; try { await storage.set(DECK_KEY, JSON.stringify(next)); } catch (e) {} };
+
+  /* ---- backup: everything but API keys, as pasteable JSON ---- */
+  const doExport = () => {
+    const blob = JSON.stringify({
+      v: 1,
+      exported: new Date().toISOString(),
+      learner,
+      library: { ...library, courses: library.courses },
+      prefs,
+      skills,
+      deck,
+      provider,
+      modelId,
+      claudeModel,
+    });
+    setBackupText(blob);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(blob);
+        setBackupMsg("Copied to clipboard — paste it somewhere safe (notes, email to yourself).");
+      } else {
+        setBackupMsg("Copy the text below and save it somewhere safe.");
+      }
+    } catch (e) {
+      setBackupMsg("Copy the text below and save it somewhere safe.");
+    }
+  };
+  const doImport = () => {
+    try {
+      const d = JSON.parse(backupText);
+      if (!d || d.v !== 1) throw new Error("missing version marker");
+      if (d.learner) persistLearner({ courseProgress: {}, dayXp: null, ...d.learner });
+      if (d.library) persistLib(withBuiltins(d.library));
+      if (d.prefs) persistPrefs({ ...DEFAULT_PREFS, ...d.prefs, onboarded: true });
+      if (d.skills) persistSkills(d.skills);
+      if (Array.isArray(d.deck)) persistDeck(d.deck);
+      if (d.provider) persistProvider(d.provider);
+      if (d.modelId) persistModel(d.modelId);
+      if (d.claudeModel) persistClaudeModel(d.claudeModel);
+      setBackupMsg("Imported — XP, courses, mastery and review deck restored on this device.");
+    } catch (e) {
+      setBackupMsg("That doesn't look like a Prexis backup (" + e.message + ").");
+    }
+  };
 
   /* ---- adaptive engine ---- */
   const bumpSkill = (obj, topicLabel, score, w) => {
@@ -1297,12 +1346,13 @@ ${graded
       const nc = next.courses.find((c) => c.id === courseId);
       nc.units[u].lessons[l] = { title: lessonTitle, status: "ready", steps: gen.steps, flagged };
       await persistLib(next);
+      setGenErrors((prev) => { const nx = { ...prev }; delete nx[courseId + ":" + u + ":" + l]; return nx; });
       setGenState(null);
       return true;
     } catch (e) {
       console.error(e);
       setGenState(null);
-      setStudioErr(aiName() + " failed to write that lesson. " + (e.message || "Tap GEN to retry."));
+      setGenErrors((prev) => ({ ...prev, [courseId + ":" + u + ":" + l]: String(e.message || "generation failed") }));
       return false;
     }
   };
@@ -1311,14 +1361,24 @@ ${graded
     setStudioErr("");
     const course = libRef.current.courses.find((c) => c.id === courseId);
     if (!course) return;
-    for (let u = 0; u < course.units.length; u++) {
-      for (let l = 0; l < course.units[u].lessons.length; l++) {
-        if (libRef.current.courses.find((c) => c.id === courseId).units[u].lessons[l].status !== "ready") {
-          const ok = await generateOne(courseId, u, l);
-          if (!ok) return;
-        }
-      }
+    genCancelRef.current = false;
+    const targets = [];
+    course.units.forEach((u, ui) =>
+      u.lessons.forEach((l, li) => { if (l.status !== "ready") targets.push({ u: ui, l: li }); })
+    );
+    setGenQueue(targets.map((t) => courseId + ":" + t.u + ":" + t.l));
+    for (const t of targets) {
+      if (genCancelRef.current) break;
+      setGenQueue((q) => q.filter((k) => k !== courseId + ":" + t.u + ":" + t.l));
+      await generateOne(courseId, t.u, t.l); // a failure marks the lesson FAILED and the queue moves on
     }
+    setGenQueue([]);
+    setGenState(null);
+  };
+
+  const cancelGeneration = () => {
+    genCancelRef.current = true;
+    setGenQueue([]);
   };
 
   const startLibraryLesson = (courseId, u, l) => {
@@ -1411,6 +1471,15 @@ ${graded
   };
 
   /* ---- hint ladder ---- */
+  const hintLabel = () => {
+    if (!step) return "HINT";
+    if (step.type === "mcq") return "HINT · REMOVE A WRONG OPTION";
+    if (step.type === "code") return "HINT · REVEAL NEXT SOLUTION LINE";
+    if (step.type === "order") return "HINT · PLACE THE NEXT ITEM";
+    if (step.type === "output") return "HINT · FIRST CHARACTER + LENGTH";
+    if (step.type === "numeric") return "HINT · NARROW THE RANGE";
+    return "HINT";
+  };
   const hintAvailable = () => {
     if (!step || checked) return false;
     if (step.type === "mcq") return elim.length < Math.max(0, (step.options || []).length - 2);
@@ -1798,10 +1867,10 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontWeight: 800, fontSize: 16 }}>{c.title}</span>
-                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{p.done}/{p.total}</span>
+                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{p.done}/{p.total} DONE</span>
                       </div>
                       <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>
-                        {c.level.toUpperCase()} · {p.ready} READY
+                        {c.level.toUpperCase()}{p.ready < p.total ? " · " + p.ready + "/" + p.total + " GENERATED" : ""}
                       </p>
                       <div className="bar" style={{ marginTop: 10 }}>
                         <i style={{ width: (p.total ? (p.done / p.total) * 100 : 0) + "%" }} />
@@ -2122,7 +2191,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                     <button onClick={runCode} disabled={!codeText.trim()} className="primary" style={{ marginTop: 18 }}>{codeText.trim() ? "Run tests" : "Write something first"}</button>
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                       {hintAvailable() && (
-                        <button onClick={giveHint} className="ghost" style={{ flex: 1, padding: "10px 12px" }}>HINT (−5 XP)</button>
+                        <button onClick={giveHint} className="ghost" style={{ flex: 1, padding: "10px 12px" }}>{hintLabel()} (−5 XP)</button>
                       )}
                       {attempts >= 2 && (
                         <button onClick={giveUp} className="ghost" style={{ flex: 1, padding: "10px 12px" }}>SHOW SOLUTION</button>
@@ -2187,7 +2256,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       Check
                     </button>
                     {hintAvailable() && (
-                      <button onClick={giveHint} className="ghost" style={{ width: "100%", marginTop: 10, padding: "10px 12px" }}>HINT (−5 XP)</button>
+                      <button onClick={giveHint} className="ghost" style={{ width: "100%", marginTop: 10, padding: "10px 12px" }}>{hintLabel()} (−5 XP)</button>
                     )}
                   </div>
                 ) : (correct || revealed) ? (
@@ -2273,6 +2342,26 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             </div>
 
             <div style={{ marginTop: 34 }}>
+              <p className="kicker">BACKUP</p>
+              <p style={{ marginTop: 8, fontSize: 13, color: "var(--pencil)", lineHeight: 1.5 }}>
+                Progress lives only in this browser. Export a backup to move your XP, mastery, review deck and courses to another device — API keys are never included.
+              </p>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button className="ghost" onClick={doExport}>EXPORT BACKUP</button>
+                <button className="ghost" onClick={doImport} disabled={!backupText.trim()}>IMPORT FROM TEXT BELOW</button>
+              </div>
+              <textarea
+                className="mono"
+                value={backupText}
+                onChange={(e) => setBackupText(e.target.value)}
+                placeholder="Export fills this box — copy it somewhere safe. To restore, paste a backup here and tap import."
+                spellCheck={false} autoCapitalize="off" autoCorrect="off"
+                style={{ marginTop: 10, width: "100%", minHeight: 72, fontSize: 11, lineHeight: 1.5, padding: "8px 10px", borderRadius: 6, background: "var(--paper-2)", border: "1.5px solid var(--box)", resize: "vertical" }}
+              />
+              {backupMsg && <p className="mono" style={{ marginTop: 6, fontSize: 11, color: "var(--pen)" }}>{backupMsg}</p>}
+            </div>
+
+            <div style={{ marginTop: 34 }}>
               <p className="kicker">DANGER</p>
               <button
                 className="ghost"
@@ -2288,7 +2377,10 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 {confirmReset ? "SURE? THIS WIPES XP, MASTERY AND THE REVIEW DECK" : "RESET ALL PROGRESS"}
               </button>
               {confirmReset && (
-                <button className="ghost" style={{ marginTop: 10, marginLeft: 8 }} onClick={() => setConfirmReset(false)}>CANCEL</button>
+                <span>
+                  <button className="ghost" style={{ marginTop: 10, marginLeft: 8 }} onClick={() => setConfirmReset(false)}>CANCEL</button>
+                  <button className="ghost" style={{ marginTop: 10, marginLeft: 8 }} onClick={() => { doExport(); }}>EXPORT FIRST</button>
+                </span>
               )}
             </div>
           </div>
@@ -2376,7 +2468,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                           <span style={{ fontWeight: 800, fontSize: 15 }}>{c.title}</span>
                           <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{open ? "−" : "+"}</span>
                         </div>
-                        <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>{c.level.toUpperCase()} · {p.ready}/{p.total} READY</p>
+                        <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>{c.level.toUpperCase()} · {p.ready}/{p.total} GENERATED · {p.done}/{p.total} COMPLETED</p>
                       </button>
                       {open && (
                         <div style={{ padding: "0 14px 14px" }}>
@@ -2384,20 +2476,28 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                             <div key={ui} style={{ marginTop: 8 }}>
                               <p className="kicker" style={{ fontSize: 10 }}>UNIT {ui + 1} · {u.title.toUpperCase()}</p>
                               {u.lessons.map((l, li) => {
+                                const key = c.id + ":" + ui + ":" + li;
                                 const busy = genState && genState.courseId === c.id && genState.u === ui && genState.l === li;
+                                const queued = genQueue.includes(key);
+                                const failed = !!genErrors[key];
+                                const running = !!genState || genQueue.length > 0;
                                 return (
                                   <div key={li} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px dashed var(--rule)", gap: 8 }}>
                                     <span style={{ fontSize: 13.5, fontWeight: 500, flex: 1 }}>{l.title}</span>
                                     {busy ? (
                                       <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>{genState.phase === "writing" ? "WRITING…" : "CHECKING…"}</span>
+                                    ) : queued ? (
+                                      <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>QUEUED</span>
+                                    ) : failed ? (
+                                      <span className="mono" title={genErrors[key]} style={{ fontSize: 10, color: "var(--margin)" }}>✗ FAILED</span>
                                     ) : l.status === "ready" ? (
                                       <span className="mono" style={{ fontSize: 10, color: l.flagged ? "var(--margin)" : "var(--pen)" }}>{l.flagged ? l.flagged + " FLAG" : "✓ VERIFIED"}</span>
                                     ) : (
                                       <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>TODO</span>
                                     )}
-                                    {!busy && (
-                                      <button onClick={() => generateOne(c.id, ui, li)} disabled={!!genState} className="ghost" style={{ opacity: genState ? 0.4 : 1 }}>
-                                        {l.status === "ready" ? "REDO" : "GEN"}
+                                    {!busy && !queued && (
+                                      <button onClick={() => generateOne(c.id, ui, li)} disabled={running} className="ghost" style={{ opacity: running ? 0.4 : 1 }}>
+                                        {failed ? "RETRY" : l.status === "ready" ? "REDO" : "GEN"}
                                       </button>
                                     )}
                                   </div>
@@ -2406,7 +2506,13 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                             </div>
                           ))}
                           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                            <button onClick={() => generateAll(c.id)} disabled={!!genState} className="primary" style={{ fontSize: 14, padding: "10px 12px", flex: 1 }}>{busyCourse ? "Generating…" : "Generate all"}</button>
+                            {busyCourse || genQueue.length > 0 ? (
+                              <button onClick={cancelGeneration} className="ghost" style={{ fontSize: 14, padding: "10px 12px", flex: 1, color: "var(--margin)", borderColor: "var(--margin)" }}>
+                                Cancel · {genQueue.filter((k) => k.startsWith(c.id + ":")).length + (busyCourse ? 1 : 0)} left
+                              </button>
+                            ) : (
+                              <button onClick={() => generateAll(c.id)} disabled={!!genState || genQueue.length > 0} className="primary" style={{ fontSize: 14, padding: "10px 12px", flex: 1 }}>Generate all</button>
+                            )}
                             <button
                               onClick={() => {
                                 if (confirmDel === c.id) {
