@@ -8,7 +8,7 @@ Open `index.html` in any modern browser (keep `content.js` beside it). No build 
 
 ## Built-in curriculum (no key, no account)
 
-Like Brilliant, the core content is authored, not generated: `content.js` carries **49 curated lessons across 6 subjects**, each running from fundamentals to an expert track, all fully offline —
+Like Brilliant, the core content is authored, not generated: `content.js` carries **67 curated lessons across 9 subjects**, all fully offline —
 
 - **JavaScript, by hand** (9) — variables, arrays, debugging, async, objects, small programs, then closures, reduce, and immutability (with real in-browser code grading)
 - **Web pages from scratch** (9) — HTML structure, links & images, CSS selectors, the box model, flexbox, responsive design, then CSS Grid, design tokens, and accessibility
@@ -16,6 +16,9 @@ Like Brilliant, the core content is authored, not generated: `content.js` carrie
 - **Found on Google** (8) — how search works, keywords, on-page SEO, backlinks, measuring, then content clusters, technical SEO, and local search
 - **Numbers you can use** (8) — percentages, ratios, compound growth, probability, averages, then expected value, spread, and real-vs-nominal money math (with interactive graphs)
 - **Clear thinking** (7) — fallacies, correlation vs causation, Fermi estimation, base rates, then cognitive biases, incentives, and Bayesian updating
+- **Money that behaves** (6) — pay-yourself-first budgeting, emergency funds, debt strategy, index investing, big purchases, insurance & tax brackets
+- **Spreadsheet thinking** (6) — cells & formulas, absolute/relative references, core functions, IF/COUNTIF/SUMIF, clean tables, pivot thinking
+- **Writing that works** (6) — cutting fog, paragraph craft, emails people answer, BLUF structure, writing for skimmers, revising like an editor
 
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions — every question answerable from what came above it. Typing a topic checks the library first: "website design" or "flexbox" opens the curated lesson instantly; the AI only gets called for subjects the library doesn't cover. MCQ options are shuffled at launch so answers have no home position.
 
@@ -42,4 +45,4 @@ All progress, preferences, mastery and the review deck persist locally (host key
 
 `concept` · `worked` (a problem solved with you, one revealed step at a time — you learn the method before being tested on it) · `mcq` · `numeric` · `order` · `output` (predict what code prints — it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve)
 
-All 49 curated lessons and 6 courses work fully offline with no API key.
+All 67 curated lessons and 9 courses work fully offline with no API key.
