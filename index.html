@@ -106,6 +106,11 @@
   :root[data-skin="terminal"] .margin-rule, :root[data-skin="gallery"] .margin-rule { display: none; }
   .inner { position: relative; padding: 0 20px 88px 50px; animation: rise .35s ease; }
   :root[data-skin="terminal"] .inner, :root[data-skin="gallery"] .inner { padding-left: 20px; }
+  @media (max-width: 400px) {
+    .margin-rule { left: 20px; }
+    .inner { padding-left: 34px; padding-right: 16px; }
+    :root[data-skin="terminal"] .inner, :root[data-skin="gallery"] .inner { padding-left: 16px; }
+  }
   .display { font-family: var(--serif); letter-spacing: -0.02em; }
   :root[data-heads="sans"] .display { font-family: var(--sans); letter-spacing: -0.01em; }
   .mono { font-family: var(--mono); letter-spacing: .02em; }
@@ -466,7 +471,7 @@ const withBuiltins = (lib) => {
 function localLesson(topic, level) {
   const t = topic.trim();
   const lower = t.toLowerCase();
-  const slug = t.replace(/[^\w\s]/g, "").slice(0, 42) || "This idea";
+  const slug = t.replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim().slice(0, 42) || "This idea";
   const isCode = /code|script|function|array|async|react|html|css|debug|program|loop|object|promise|json|api/.test(lower);
   const isMath = /math|percent|interest|algebra|ratio|rate|compound|probability|stat/.test(lower);
 
@@ -477,7 +482,7 @@ function localLesson(topic, level) {
         {
           type: "concept",
           heading: "Start from one rule",
-          body: `${slug} is easier when you can state one rule in a sentence. Write the rule, then make the computer enforce it. Level: ${level}.`,
+          body: `${slug} gets easier once you can state one rule at a time. The steps below each ask you to predict or build something tiny — that tight loop is the fastest way in.`,
           code: "const idea = \"" + slug.replace(/"/g, "") + "\";\nconsole.log(idea.length);",
         },
         {
@@ -530,7 +535,7 @@ function localLesson(topic, level) {
     {
       type: "concept",
       heading: "Name the moving part",
-      body: `To learn ${slug}, isolate one quantity you can change and one result you can watch. Everything else waits.`,
+      body: `To learn ${slug}, isolate one quantity you can change and one result you can watch. Each step below asks you to predict or compute one small thing — everything else waits.`,
     },
     {
       type: "mcq",
@@ -627,9 +632,49 @@ function localCourse(subject, level) {
   };
 }
 
+/* Whitespace/grammar tidy for generated lessons: collapses doubled
+   spaces and trims prose fields. Code fields are never touched. */
+const tidyStr = (v) => (typeof v === "string" ? v.replace(/[ \t]+/g, " ").replace(/ ([,.;:!?])/g, "$1").trim() : v);
+function tidyLesson(gen) {
+  if (!gen) return gen;
+  gen.title = tidyStr(gen.title);
+  (gen.steps || []).forEach((st) => {
+    ["heading", "body", "prompt", "explain", "problem", "takeaway", "label", "valueLabel"].forEach((k) => {
+      if (st[k]) st[k] = tidyStr(st[k]);
+    });
+    if (Array.isArray(st.options)) st.options = st.options.map(tidyStr);
+    if (Array.isArray(st.items) && !st.codeItems) st.items = st.items.map(tidyStr);
+    if (st.type === "worked" && Array.isArray(st.steps)) st.steps = st.steps.map(tidyStr);
+  });
+  return gen;
+}
+
 /* ---------------- UI bits ---------------- */
+const HL_RE = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|(\b\d+(?:\.\d+)?\b)|(\b(?:const|let|var|function|return|if|else|for|while|new|typeof|await|async|of|in|class|try|catch|throw|true|false|null|undefined|this)\b)/g;
+const HL_STYLE = {
+  com: { color: "var(--pencil)", fontStyle: "italic" },
+  str: { color: "var(--pen)" },
+  num: { fontWeight: 600 },
+  kw: { color: "var(--margin)", fontWeight: 600 },
+};
+function highlightCode(code) {
+  const out = [];
+  let last = 0, m;
+  HL_RE.lastIndex = 0;
+  while ((m = HL_RE.exec(code))) {
+    if (m.index > last) out.push({ t: "plain", s: code.slice(last, m.index) });
+    out.push({ t: m[1] ? "com" : m[2] ? "str" : m[3] ? "num" : "kw", s: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < code.length) out.push({ t: "plain", s: code.slice(last) });
+  return out;
+}
 function CodeBlock({ code }) {
-  return <pre className="code">{code}</pre>;
+  return (
+    <pre className="code">
+      {highlightCode(String(code)).map((tk, i) => (tk.t === "plain" ? tk.s : <span key={i} style={HL_STYLE[tk.t]}>{tk.s}</span>))}
+    </pre>
+  );
 }
 
 function ExploreGraph({ step, value }) {
@@ -704,6 +749,7 @@ function Prexis() {
   const [marks, setMarks] = useState([]);
   const [hintMarks, setHintMarks] = useState([]);
   const [loadingLabel, setLoadingLabel] = useState(null);
+  const [pendingPick, setPendingPick] = useState(null);
   const [sel, setSel] = useState(null);
   const [num, setNum] = useState("");
   const [orderPool, setOrderPool] = useState([]);
@@ -747,6 +793,8 @@ function Prexis() {
   // hints and tutor
   const [workedN, setWorkedN] = useState(0);
   const [hintN, setHintN] = useState(0);
+  const [retries, setRetries] = useState(0);
+  const [revealed, setRevealed] = useState(false);
   const [elim, setElim] = useState([]);
   const [revealN, setRevealN] = useState(0);
   const [hintText, setHintText] = useState("");
@@ -938,6 +986,8 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     }
     setWorkedN(0);
     setHintN(0);
+    setRetries(0);
+    setRevealed(false);
     setElim([]);
     setRevealN(0);
     setHintText("");
@@ -950,7 +1000,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
       if (screen !== "lesson" || !lesson) return;
       const s = lesson.steps[idx];
       if (!s) return;
-      if (checked && e.key === "Enter") { e.preventDefault(); advance(); return; }
+      if (checked && (correct || revealed) && e.key === "Enter") { e.preventDefault(); advance(); return; }
       if (checked) return;
       if (s.type === "mcq" && e.key >= "1" && e.key <= "4") {
         const i = Number(e.key) - 1;
@@ -1038,7 +1088,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     const ls = contentLessonAt(pick.courseId, pick.u, pick.l);
     if (!ls) return false;
     setActiveCourseId(pick.courseId);
-    launchLesson({ title: ls.title, steps: deep(ls.steps) }, { courseId: pick.courseId, u: pick.u, l: pick.l }, topicStr);
+    launchLesson({ title: ls.title, steps: deep(ls.steps) }, { courseId: pick.courseId, u: pick.u, l: pick.l, via: "quick" }, topicStr);
     return true;
   };
 
@@ -1078,7 +1128,7 @@ ${lessonSchema}`,
         );
       }
       if (!parsed || !Array.isArray(parsed.steps) || parsed.steps.length === 0) throw new Error("bad shape");
-      launchLesson(parsed, null, chosen);
+      launchLesson(tidyLesson(parsed), null, chosen);
     } catch (e) {
       console.error(e);
       // AI failed: a related library lesson beats an error, but never
@@ -1162,6 +1212,7 @@ ${lessonSchema}`,
         gen = localLesson(`${lessonTitle} — ${course.title}`, course.level);
       }
       if (!gen || !Array.isArray(gen.steps) || gen.steps.length === 0) throw new Error("bad shape");
+      tidyLesson(gen);
       gen.title = lessonTitle;
 
       setGenState({ courseId, u, l, phase: "checking" });
@@ -1243,9 +1294,9 @@ ${graded
   const sharedControls = step && ["mcq", "numeric", "order", "output"].includes(step.type);
 
   const setMark = (i, v) => setMarks((m) => { const nx = [...m]; nx[i] = v; return nx; });
-  const recordHints = (i) => setHintMarks((h) => { const nx = [...h]; nx[i] = hintN; return nx; });
+  const recordHints = (i) => setHintMarks((h) => { const nx = [...h]; nx[i] = hintN + retries; return nx; });
 
-  const stepGain = () => Math.max(5, 15 - 5 * hintN);
+  const stepGain = () => Math.max(3, 15 - 5 * hintN - 5 * retries);
 
   const check = () => {
     let ok = false;
@@ -1259,17 +1310,38 @@ ${graded
     if (step.type === "output") ok = num.trim() === String(step.expect).trim();
     setCorrect(ok);
     setChecked(true);
-    setMark(idx, ok ? "right" : "wrong");
     recordHints(idx);
-    setSTotal((x) => x + 1);
     if (ok) {
+      setMark(idx, "right");
+      setSTotal((x) => x + 1);
       const g = stepGain();
       setLastGain(g);
       setSXp((x) => x + g);
       setSRight((x) => x + 1);
-    } else {
+    } else if (retries === 0) {
       addToDeck(step);
     }
+  };
+
+  /* Wrong answer: another attempt at reduced XP, without revealing the answer. */
+  const retryStep = () => {
+    setRetries((r) => r + 1);
+    setChecked(false);
+    setCorrect(false);
+    setSel(null);
+    setNum("");
+    setTutorNote("");
+    if (step.type === "order" && Array.isArray(step.items)) {
+      let pool = shuffle(step.items);
+      if (pool.length > 1 && pool.join("|") === step.items.join("|")) pool.push(pool.shift());
+      setOrderPool(pool);
+      setOrderSeq([]);
+    }
+  };
+  const revealStep = () => {
+    setRevealed(true);
+    setMark(idx, "wrong");
+    setSTotal((x) => x + 1);
   };
 
   const runCode = async () => {
@@ -1599,14 +1671,35 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 {CONTENT.quickPicks.map((q) => (
                   <button
                     key={q.label}
-                    onClick={() => launchFromLibrary(q.course, q.u, q.l, q.topic || q.label)}
-                    className="chip"
-                    style={{ fontSize: 13, padding: "6px 10px" }}
+                    onClick={() => {
+                      const pick = nextInCourse(q.course, { courseId: q.course, u: q.u, l: q.l });
+                      const ls = contentLessonAt(pick.courseId, pick.u, pick.l);
+                      if (ls) setPendingPick({ q, title: ls.title, steps: ls.steps.length });
+                    }}
+                    className={"chip" + (pendingPick && pendingPick.q.label === q.label ? "" : "")}
+                    style={{ fontSize: 13, padding: "6px 10px", borderColor: pendingPick && pendingPick.q.label === q.label ? "var(--ink)" : undefined }}
                   >
                     {q.label}
                   </button>
                 ))}
               </div>
+              {pendingPick && (
+                <div className="card" style={{ marginTop: 10, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, boxShadow: "none" }}>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14.5 }}>{pendingPick.title}</p>
+                    <p className="mono" style={{ margin: "3px 0 0", fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em" }}>
+                      {pendingPick.steps} STEPS · ~{Math.max(2, Math.round(pendingPick.steps * 0.7))} MIN
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="primary" style={{ width: "auto", padding: "8px 14px", fontSize: 14 }}
+                      onClick={() => { const q = pendingPick.q; setPendingPick(null); launchFromLibrary(q.course, q.u, q.l, q.topic || q.label); }}>
+                      Start
+                    </button>
+                    <button className="ghost" onClick={() => setPendingPick(null)}>✕</button>
+                  </div>
+                </div>
+              )}
               <p className="kicker" style={{ marginTop: 18 }}>WITH AI · ANYTHING ELSE{aiKey().trim() ? "" : " (ADD A KEY IN STUDIO)"}</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
                 {TRY_TOPICS.map((t) => (
@@ -1759,7 +1852,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   );
                 })}
               </div>
-              <button className="mono" onClick={() => setScreen(lessonSource && lessonSource.courseId !== undefined ? "course" : "home")} style={{ background: "none", border: "none", color: "var(--pencil)", fontSize: 12 }}>EXIT</button>
+              <button className="mono" onClick={() => setScreen(lessonSource && lessonSource.courseId !== undefined && lessonSource.via !== "quick" ? "course" : "home")} style={{ background: "none", border: "none", color: "var(--pencil)", fontSize: 12 }}>EXIT</button>
             </div>
 
             <p className="kicker" style={{ marginTop: 28 }}>{lesson.title.toUpperCase()} · {idx + 1}/{lesson.steps.length}</p>
@@ -1835,11 +1928,11 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       <span>{it}</span>
                     </button>
                   ))}
-                  {orderSeq.length === 0 && <p style={{ fontSize: 13, color: "var(--pencil)" }}>Tap items below in order.</p>}
+                  {orderSeq.length === 0 && <p style={{ fontSize: 13, color: "var(--pencil)" }}>Tap the items below in order — first one first. Tap a placed item to send it back.</p>}
                 </div>
                 <div style={{ gap: 8, marginTop: 16, display: "flex", flexDirection: step.codeItems ? "column" : "row", flexWrap: step.codeItems ? "nowrap" : "wrap" }}>
                   {orderPool.map((it, i) => (
-                    <button key={i} className={"chip" + (step.codeItems ? " codey" : "")} onClick={() => { if (checked) return; setOrderPool((p) => p.filter((_, j) => j !== i)); setOrderSeq((s) => [...s, it]); }}>{it}</button>
+                    <button key={i} className={"chip" + (step.codeItems ? " codey" : "")} style={{ borderStyle: "dashed" }} onClick={() => { if (checked) return; setOrderPool((p) => p.filter((_, j) => j !== i)); setOrderSeq((s) => [...s, it]); }}>{it}</button>
                   ))}
                 </div>
               </div>
@@ -1852,11 +1945,13 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
                   {step.options.map((o, i) => {
                     const dead = elim.includes(i);
+                    const resolved = checked && (correct || revealed);
                     let border = "var(--box)", bg = "var(--paper-2)", color = "var(--ink)";
                     if (!checked && sel === i) { border = "var(--ink)"; bg = "var(--sel)"; }
-                    if (checked && i === step.answer) { border = "var(--pen)"; bg = "var(--good)"; }
-                    else if (checked && sel === i) { border = "var(--margin)"; bg = "var(--bad)"; }
-                    else if (checked) color = "var(--pencil)";
+                    if (checked && !resolved && sel === i) { border = "var(--margin)"; bg = "var(--bad)"; }
+                    if (resolved && i === step.answer) { border = "var(--pen)"; bg = "var(--good)"; }
+                    else if (resolved && sel === i) { border = "var(--margin)"; bg = "var(--bad)"; }
+                    else if (resolved) color = "var(--pencil)";
                     return (
                       <button key={i} className={"opt" + (dead && !checked ? " elim" : "")} disabled={dead && !checked} onClick={() => { if (!checked && !dead) setSel(i); }} style={{ borderColor: border, background: bg, color }}>
                         <span className="mono" style={{ fontSize: 11, color: "var(--pencil)", marginRight: 8 }}>{i + 1}</span>{o}
@@ -1980,10 +2075,24 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             {sharedControls && (
               <div>
                 {hintText && !checked && <div className="hintbox">{hintText}</div>}
-                {checked && (
+                {checked && !correct && !revealed && (
+                  <div>
+                    <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 6, background: "var(--paper-2)", border: "1.5px solid var(--margin)" }}>
+                      <p className="mono" style={{ fontSize: 13, fontWeight: 600, color: "var(--margin)", margin: 0 }}>✗ NOT QUITE</p>
+                      <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }}>
+                        Have another look — a correct retry is still worth {Math.max(3, 15 - 5 * hintN - 5 * (retries + 1))} XP.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                      <button onClick={retryStep} className="primary" style={{ flex: 1 }}>Try again</button>
+                      <button onClick={revealStep} className="ghost" style={{ padding: "10px 12px" }}>SHOW ANSWER</button>
+                    </div>
+                  </div>
+                )}
+                {checked && (correct || revealed) && (
                   <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 6, background: "var(--paper-2)", border: `1.5px solid ${correct ? "var(--pen)" : "var(--margin)"}` }}>
                     <p className="mono" style={{ fontSize: 13, fontWeight: 600, color: correct ? "var(--pen)" : "var(--margin)" }}>
-                      {correct ? "✓ CORRECT" : "✗ NOT QUITE"}
+                      {correct ? "✓ CORRECT" : "✗ NOT THIS TIME"}
                       {correct && <span className="hi" style={{ marginLeft: 8, padding: "1px 6px" }}>+{lastGain} XP</span>}
                     </p>
                     {!correct && step.type === "numeric" && <p style={{ marginTop: 6, fontSize: 14, fontWeight: 600 }}>Answer: {step.answer}</p>}
@@ -2018,9 +2127,9 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       <button onClick={giveHint} className="ghost" style={{ width: "100%", marginTop: 10, padding: "10px 12px" }}>HINT (−5 XP)</button>
                     )}
                   </div>
-                ) : (
+                ) : (correct || revealed) ? (
                   <button onClick={advance} className="primary" style={{ marginTop: 24 }}>{idx + 1 >= lesson.steps.length ? "Finish" : "Continue"}</button>
-                )}
+                ) : null}
               </div>
             )}
           </div>
@@ -2043,9 +2152,9 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <button
               className="primary"
               style={{ marginTop: 44 }}
-              onClick={() => { setScreen(lessonSource && lessonSource.courseId !== undefined ? "course" : "home"); setLesson(null); }}
+              onClick={() => { setScreen(lessonSource && lessonSource.courseId !== undefined && lessonSource.via !== "quick" ? "course" : "home"); setLesson(null); }}
             >
-              {lessonSource && lessonSource.courseId !== undefined ? "Back to course" : "New lesson"}
+              {lessonSource && lessonSource.courseId !== undefined && lessonSource.via !== "quick" ? "Back to course" : "New lesson"}
             </button>
           </div>
         )}
@@ -2120,7 +2229,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         {tab === "studio" && screen === "home" && (
           <div>
             <p style={{ marginTop: 24, fontSize: 14, color: "var(--pencil)", lineHeight: 1.55 }}>
-              Your chosen AI engine writes the lessons on any subject. This page executes every generated solution against its own tests before a lesson ships, quiz answers get independently re-solved for verification, and your mastery record is fed back into every prompt.
+              Your chosen AI engine writes real lessons on any subject, verified before they ship: generated code runs against its own tests, quiz answers get independently re-solved, and your mastery record shapes every prompt. Without a key, the local teacher covers the 49 library lessons fully — but custom subjects only get a generic practice shell, so a key is what unlocks truly new topics.
             </p>
 
             <div style={{ marginTop: 20 }}>
@@ -2158,7 +2267,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <p className="mono" style={{ fontSize: 11, color: aiKey().trim() ? "var(--pen)" : "var(--pencil)", marginTop: 10 }}>
                 {aiKey().trim()
                   ? "● " + ((provider === "claude" ? CLAUDE_MODELS.find((m) => m.id === claudeModel) : MODELS.find((m) => m.id === modelId)) || {}).label + (provider === "claude" ? " · api.anthropic.com" : " · api.x.ai")
-                  : "○ No key — Studio will use the local teacher"}
+                  : "○ No key — local teacher only"}
               </p>
               <p style={{ fontSize: 12, color: "var(--pencil)", lineHeight: 1.5, marginTop: 6 }}>
                 {provider === "claude"
