@@ -208,13 +208,14 @@ const DEFAULT_PREFS = { skin: null, size: "m", wide: false, heads: "serif", goal
 
 const lessonSchema = `Allowed step types:
 concept: {"type":"concept","heading":"3 to 6 words","body":"2 or 3 short plain sentences teaching one idea","code":"optional short JavaScript snippet"}
+worked: {"type":"worked","heading":"3 to 6 words","problem":"one concrete problem stated in a sentence","steps":["first move and the reasoning behind it","second move","final move giving the answer"],"takeaway":"one memorable sentence stating the rule used","code":"optional snippet the problem refers to"} — a worked example the learner reveals one step at a time. steps is 3 to 5 short strings that SOLVE the problem completely. Not graded.
 mcq: {"type":"mcq","prompt":"one clear question","options":["a","b","c","d"],"answer":0,"explain":"1 or 2 sentences on why","code":"optional snippet the question refers to"}
 numeric: {"type":"numeric","prompt":"...","answer":12.5,"tolerance":0.5,"explain":"..."}
 order: {"type":"order","prompt":"instruction to arrange the items","items":["first","second","third","fourth"],"explain":"...","codeItems":false} where items MUST already be listed in the correct order. Set codeItems to true only when the items are lines of code.
 output: {"type":"output","code":"const a = [1, 2];\\nconsole.log(a.length);","prompt":"What does this print?","expect":"2","explain":"..."} where code is valid JavaScript that runs without errors and prints via console.log, and expect is the exact printed output.
 code: {"type":"code","prompt":"one small clear coding task","starter":"function add(a, b) {\\n  \\n}","tests":[{"call":"add(2, 3)","expect":5},{"call":"add(0, 0)","expect":0}],"solution":"function add(a, b) {\\n  return a + b;\\n}","explain":"1 or 2 sentences"} where tests are expressions calling the learner's JavaScript, expect is the exact return value as JSON, and solution MUST pass every test.
 explore: {"type":"explore","heading":"...","body":"tell the learner what to notice as they drag","expr":"1000*(1+r)^10","variable":"r","min":0,"max":0.2,"stepSize":0.005,"label":"rate","valueLabel":"balance"} where expr is a plain math expression using only numbers and the single variable, evaluable by mathjs.
-Rules: 6 or 7 steps total. Step 1 is a concept. Include exactly 4 graded steps (mcq, numeric, order, output or code). If the topic is programming: use JavaScript only, include exactly one code step and at least one output step, and keep every snippet under 8 short lines. If the topic is not programming: do not use code, output or codeItems, and include one explore step only if the topic is quantitative. Every question must be solvable from the concept steps plus light reasoning. Difficulty rises gently. No trick questions. "answer" for mcq is a 0-based index. Voice: direct, specific, no cheerleading.`;
+Rules: 7 or 8 steps total. Step 1 is a concept. Step 2 is a worked example ("worked") that solves one problem of the same kind the graded steps will ask, so the learner is taught the method before being tested on it. Include exactly 4 graded steps (mcq, numeric, order, output or code). If the topic is programming: use JavaScript only, include exactly one code step and at least one output step, and keep every snippet under 8 short lines. If the topic is not programming: do not use code, output or codeItems, and include one explore step only if the topic is quantitative. Every question must be solvable from the concept steps plus light reasoning. Difficulty rises gently. No trick questions. "answer" for mcq is a 0-based index. Voice: direct, specific, no cheerleading.`;
 
 const parseJsonLoose = (text) => {
   if (text == null) throw new Error("empty model response");
@@ -710,6 +711,7 @@ function Prexis() {
   const [claudeModel, setClaudeModel] = useState(DEFAULT_CLAUDE_MODEL);
   const [showKey, setShowKey] = useState(false);
   // hints and tutor
+  const [workedN, setWorkedN] = useState(0);
   const [hintN, setHintN] = useState(0);
   const [elim, setElim] = useState([]);
   const [revealN, setRevealN] = useState(0);
@@ -856,6 +858,7 @@ function Prexis() {
       setAttempts(0);
       setShowSol(false);
     }
+    setWorkedN(0);
     setHintN(0);
     setElim([]);
     setRevealN(0);
@@ -1636,6 +1639,37 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 <p style={{ marginTop: 14, fontSize: 16, lineHeight: 1.65 }}>{step.body}</p>
                 {step.code && <div style={{ marginTop: 14 }}><CodeBlock code={step.code} /></div>}
                 <button onClick={advance} className="primary" style={{ marginTop: 30 }}>Continue</button>
+              </div>
+            )}
+
+            {step.type === "worked" && (
+              <div>
+                <h2 className="display" style={{ fontWeight: 700, fontSize: 26, lineHeight: 1.14, margin: "10px 0 0" }}>{step.heading}</h2>
+                <div className="card" style={{ marginTop: 16, padding: "14px 16px", boxShadow: "none" }}>
+                  <p className="kicker" style={{ margin: 0 }}>LET'S DO ONE TOGETHER</p>
+                  <p style={{ margin: "8px 0 0", fontSize: 16, lineHeight: 1.55, fontWeight: 600 }}>{step.problem}</p>
+                  {step.code && <div style={{ marginTop: 10 }}><CodeBlock code={step.code} /></div>}
+                </div>
+                <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                  {step.steps.slice(0, workedN).map((s, i) => (
+                    <div key={i} style={{ display: "flex", gap: 12, animation: "rise .3s ease" }}>
+                      <span className="mono" style={{ color: "var(--margin)", fontSize: 13, fontWeight: 600, minWidth: 18 }}>{i + 1}.</span>
+                      <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6 }}>{s}</p>
+                    </div>
+                  ))}
+                </div>
+                {workedN >= step.steps.length && step.takeaway && (
+                  <p style={{ marginTop: 16, fontSize: 15, lineHeight: 1.6, animation: "rise .3s ease" }}>
+                    <span className="hi" style={{ fontWeight: 700 }}>{step.takeaway}</span>
+                  </p>
+                )}
+                {workedN < step.steps.length ? (
+                  <button onClick={() => setWorkedN((n) => n + 1)} className="primary" style={{ marginTop: 22 }}>
+                    {workedN === 0 ? "Show me" : "Next step" + " · " + workedN + "/" + step.steps.length}
+                  </button>
+                ) : (
+                  <button onClick={advance} className="primary" style={{ marginTop: 22 }}>Now you try</button>
+                )}
               </div>
             )}
 
