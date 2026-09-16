@@ -36,7 +36,7 @@ The **Style** tab (and first-run setup) reshapes the whole app:
 - Text size, page width (focus / wide), serif or sans headings
 - Daily XP goal with streaks and a today counter
 
-All progress, preferences, mastery and the review deck persist locally (host key-value storage when available, `localStorage` otherwise). No account, no server.
+All progress, preferences, mastery and the review deck persist locally (host key-value storage when available, `localStorage` otherwise). No account, no server. **Sharing a device?** The Style tab has profiles — each keeps its own XP, streaks, courses and review deck, and switching is instant.
 
 ## Step types
 
