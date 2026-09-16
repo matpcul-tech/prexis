@@ -17,7 +17,7 @@ Like Brilliant, the core content is authored, not generated: `content.js` carrie
 - **Numbers you can use** — percentages, ratios, compound growth, probability, averages (with interactive graphs)
 - **Clear thinking** — logical fallacies, correlation vs causation, Fermi estimation, base rates & risk
 
-Typing a topic checks the library first: "website design" or "flexbox" opens the curated lesson instantly; the AI only gets called for subjects the library doesn't cover. MCQ options are shuffled at launch so answers have no home position.
+Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions — every question answerable from what came above it. Typing a topic checks the library first: "website design" or "flexbox" opens the curated lesson instantly; the AI only gets called for subjects the library doesn't cover. MCQ options are shuffled at launch so answers have no home position.
 
 ## The intelligence
 
@@ -40,6 +40,6 @@ All progress, preferences, mastery and the review deck persist locally (host key
 
 ## Step types
 
-`concept` · `mcq` · `numeric` · `order` · `output` (predict what code prints — it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve)
+`concept` · `worked` (a problem solved with you, one revealed step at a time — you learn the method before being tested on it) · `mcq` · `numeric` · `order` · `output` (predict what code prints — it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve)
 
 All 31 curated lessons and 6 courses work fully offline with no API key.
