@@ -178,13 +178,24 @@ const SKILLS_KEY = "prexis-skills-v1";
 const DECK_KEY = "prexis-deck-v1";
 const KEY_KEY = "prexis-xai-key";
 const MODEL_KEY = "prexis-xai-model";
+const PROVIDER_KEY = "prexis-provider";
+const CLAUDE_KEY_KEY = "prexis-claude-key";
+const CLAUDE_MODEL_KEY = "prexis-claude-model";
 const XAI_URL = "https://api.x.ai/v1/chat/completions";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODELS = [
   { id: "grok-code-fast-1", label: "GROK CODE" },
   { id: "grok-4.6", label: "GROK 4.6" },
   { id: "grok-4.1-fast", label: "GROK FAST" },
 ];
 const DEFAULT_MODEL = "grok-code-fast-1";
+const CLAUDE_MODELS = [
+  { id: "claude-opus-5", label: "OPUS 5" },
+  { id: "claude-sonnet-5", label: "SONNET 5" },
+  { id: "claude-haiku-4-5", label: "HAIKU 4.5" },
+];
+const DEFAULT_CLAUDE_MODEL = "claude-opus-5";
+const TRY_TOPICS = ["Website design", "Running a small website", "SEO basics", "CSS layout", "Domain names & hosting"];
 
 const SKINS = [
   { id: "notebook", name: "Notebook", note: "Ruled paper, red margin", dots: ["#F7F3EA", "#1A1914", "#FFE24A"] },
@@ -245,6 +256,36 @@ async function askGrok(prompt, { key, model, maxTokens } = {}) {
     (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) ||
     data.output_text ||
     "";
+  return parseJsonLoose(text);
+}
+
+async function askClaude(prompt, { key, model, maxTokens } = {}) {
+  if (!key) throw new Error("NO_KEY");
+  const res = await fetch(ANTHROPIC_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: model || DEFAULT_CLAUDE_MODEL,
+      // generous cap: on Opus/Sonnet 5, adaptive thinking tokens count toward max_tokens
+      max_tokens: Math.max(maxTokens || 3000, 8192),
+      system: "You are Claude building Prexis lessons. Reply with ONLY valid JSON. No markdown fences, no preamble, no trailing commentary.",
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const raw = await res.text();
+  let data;
+  try { data = JSON.parse(raw); } catch (e) { throw new Error("Bad response from Anthropic"); }
+  if (!res.ok) {
+    const msg = (data.error && (data.error.message || data.error)) || ("HTTP " + res.status);
+    throw new Error(String(msg));
+  }
+  if (data.stop_reason === "refusal") throw new Error("Claude declined this request.");
+  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
   return parseJsonLoose(text);
 }
 
@@ -853,6 +894,9 @@ function Prexis() {
   const [activeCourseId, setActiveCourseId] = useState(null);
   const [apiKey, setApiKey] = useState("");
   const [modelId, setModelId] = useState(DEFAULT_MODEL);
+  const [provider, setProvider] = useState("claude");
+  const [claudeKey, setClaudeKey] = useState("");
+  const [claudeModel, setClaudeModel] = useState(DEFAULT_CLAUDE_MODEL);
   const [showKey, setShowKey] = useState(false);
   // hints and tutor
   const [hintN, setHintN] = useState(0);
@@ -914,6 +958,18 @@ function Prexis() {
         const rm = await storage.get(MODEL_KEY);
         if (rm && rm.value) setModelId(rm.value);
       } catch (e) {}
+      try {
+        const rc = await storage.get(CLAUDE_KEY_KEY);
+        if (rc && rc.value) setClaudeKey(rc.value);
+      } catch (e) {}
+      try {
+        const rcm = await storage.get(CLAUDE_MODEL_KEY);
+        if (rcm && rcm.value) setClaudeModel(rcm.value);
+      } catch (e) {}
+      try {
+        const rpv = await storage.get(PROVIDER_KEY);
+        if (rpv && rpv.value) setProvider(rpv.value);
+      } catch (e) {}
       let p = DEFAULT_PREFS;
       try {
         const rp = await storage.get(PREFS_KEY);
@@ -926,6 +982,9 @@ function Prexis() {
 
   const persistKey = async (k) => { setApiKey(k); try { await storage.set(KEY_KEY, k); } catch (e) {} };
   const persistModel = async (m) => { setModelId(m); try { await storage.set(MODEL_KEY, m); } catch (e) {} };
+  const persistClaudeKey = async (k) => { setClaudeKey(k); try { await storage.set(CLAUDE_KEY_KEY, k); } catch (e) {} };
+  const persistClaudeModel = async (m) => { setClaudeModel(m); try { await storage.set(CLAUDE_MODEL_KEY, m); } catch (e) {} };
+  const persistProvider = async (p) => { setProvider(p); try { await storage.set(PROVIDER_KEY, p); } catch (e) {} };
   const persistLearner = async (next) => { setLearner(next); try { await storage.set(LEARNER_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistLib = async (next) => { setLibrary(next); libRef.current = next; try { await storage.set(LIB_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistPrefs = async (next) => { setPrefs(next); try { await storage.set(PREFS_KEY, JSON.stringify(next)); } catch (e) {} };
@@ -1032,7 +1091,12 @@ function Prexis() {
     setScreen("lesson");
   };
 
-  const grokOpts = () => ({ key: apiKey.trim(), model: modelId });
+  const aiKey = () => (provider === "claude" ? claudeKey : apiKey);
+  const aiName = () => (provider === "claude" ? "Claude" : "Grok");
+  const askAI = (prompt, extra) => {
+    if (provider === "claude") return askClaude(prompt, { key: claudeKey.trim(), model: claudeModel, ...extra });
+    return askGrok(prompt, { key: apiKey.trim(), model: modelId, ...extra });
+  };
 
   const adaptContext = (topicLabel) => {
     const key = topicKey(topicLabel);
@@ -1060,15 +1124,15 @@ function Prexis() {
     try {
       let parsed = null;
       const known = BUILT_IN.find((b) => b.topic.toLowerCase() === chosen.toLowerCase());
-      if (known && !apiKey.trim()) parsed = deep(known.lesson);
-      if (!parsed && apiKey.trim()) {
+      if (known && !aiKey().trim()) parsed = deep(known.lesson);
+      if (!parsed && aiKey().trim()) {
         const ctx = adaptContext(chosen);
-        parsed = await askGrok(
+        parsed = await askAI(
           `Create one short interactive lesson teaching: "${chosen}". Learner level: ${lvl}.
 ${ctx ? ctx + "\n" : ""}Respond with ONLY valid JSON. No markdown fences, no text before or after. Keep the whole response under 700 words.
 Schema: {"title":"short punchy lesson title","steps":[...]}
 ${lessonSchema}`,
-          { ...grokOpts(), maxTokens: 2500 }
+          { maxTokens: 2500 }
         );
       }
       if (!parsed) parsed = localLesson(chosen, lvl);
@@ -1080,8 +1144,8 @@ ${lessonSchema}`,
         launchLesson(localLesson(chosen, lvl), null, chosen);
       } catch (e2) {
         setErr(e.message === "NO_KEY"
-          ? "Add an xAI key in Studio, or pick a built-in topic."
-          : "Grok couldn't build that. " + (e.message || "Try again."));
+          ? "Add an API key in Studio, or pick a built-in topic."
+          : aiName() + " couldn't build that. " + (e.message || "Try again."));
         setScreen("home");
       }
     }
@@ -1094,13 +1158,13 @@ ${lessonSchema}`,
     setDrafting(true);
     try {
       let outline;
-      if (apiKey.trim()) {
-        outline = await askGrok(
+      if (aiKey().trim()) {
+        outline = await askAI(
           `Design a compact course teaching: "${s}". Learner level: ${sLevel}.
 Respond with ONLY valid JSON, no fences, under 250 words.
 {"title":"course title","units":[{"title":"unit title","lessons":["lesson title","lesson title","lesson title"]}]}
 Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty builds. Titles under 6 words.`,
-          { ...grokOpts(), maxTokens: 800 }
+          { maxTokens: 800 }
         );
       } else {
         const c = localCourse(s, sLevel);
@@ -1124,7 +1188,7 @@ Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty build
       setSubject("");
     } catch (e) {
       console.error(e);
-      setStudioErr(apiKey.trim() ? "Grok draft failed. " + (e.message || "Try again.") : "Course draft failed. Try again.");
+      setStudioErr(aiKey().trim() ? aiName() + " draft failed. " + (e.message || "Try again.") : "Course draft failed. Try again.");
     }
     setDrafting(false);
   };
@@ -1143,16 +1207,16 @@ Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty build
     setGenState({ courseId, u, l, phase: "writing" });
     try {
       let gen;
-      if (apiKey.trim()) {
+      if (aiKey().trim()) {
         const ctx = adaptContext(course.subject);
-        gen = await askGrok(
+        gen = await askAI(
           `Write one interactive lesson.
 Course: "${course.title}", learner level ${course.level}. Unit: "${unit.title}". This lesson: "${lessonTitle}".
 Earlier lessons already covered: ${prior.join("; ") || "none"}. Build on them, do not repeat them.
 ${ctx ? ctx + "\n" : ""}Respond with ONLY valid JSON. No markdown fences, no text before or after. Under 700 words.
 Schema: {"title":"${lessonTitle}","steps":[...]}
 ${lessonSchema}`,
-          { ...grokOpts(), maxTokens: 2500 }
+          { maxTokens: 2500 }
         );
       } else {
         gen = localLesson(`${lessonTitle} — ${course.title}`, course.level);
@@ -1164,9 +1228,9 @@ ${lessonSchema}`,
       let flagged = await verifyLesson(gen);
 
       const graded = gen.steps.map((s, i) => ({ s, i })).filter((x) => x.s.type === "mcq" || x.s.type === "numeric");
-      if (apiKey.trim() && graded.length > 0) {
+      if (aiKey().trim() && graded.length > 0) {
         try {
-          const ver = await askGrok(
+          const ver = await askAI(
             `Solve these questions independently and carefully. Respond with ONLY valid JSON, no fences:
 {"answers":[{"i":0,"answer":2}]}
 For multiple choice, "answer" is the 0-based index of the correct option. For numeric, "answer" is the number.
@@ -1178,7 +1242,7 @@ ${graded
       : `[${x.i}] NUMERIC: ${x.s.prompt}`
   )
   .join("\n")}`,
-            { ...grokOpts(), maxTokens: 600 }
+            { maxTokens: 600 }
           );
           const byI = {};
           (ver.answers || []).forEach((a) => { byI[a.i] = a.answer; });
@@ -1207,7 +1271,7 @@ ${graded
     } catch (e) {
       console.error(e);
       setGenState(null);
-      setStudioErr("Grok failed to write that lesson. " + (e.message || "Tap GEN to retry."));
+      setStudioErr(aiName() + " failed to write that lesson. " + (e.message || "Tap GEN to retry."));
       return false;
     }
   };
@@ -1346,16 +1410,16 @@ ${graded
         : step.type === "output" ? `They answered "${num}". The correct output is "${step.expect}".`
         : step.type === "order" ? `Their order: ${orderSeq.join(" → ")}. Correct order: ${step.items.join(" → ")}.`
         : `Their code:\n${codeText}\nA working solution:\n${step.solution}`;
-      const r = await askGrok(
+      const r = await askAI(
         `A learner just got this exercise wrong. In two short, concrete sentences, name the likely misconception and give them the mental model to fix it. Do not restate the question. No cheerleading.
 Exercise: ${JSON.stringify({ type: step.type, prompt: step.prompt || step.heading, code: step.code })}
 ${given}
 Respond with ONLY valid JSON: {"note":"..."}`,
-        { ...grokOpts(), maxTokens: 300 }
+        { maxTokens: 300 }
       );
       setTutorNote(String(r.note || "").trim() || "No note returned.");
     } catch (e) {
-      setTutorNote(e.message === "NO_KEY" ? "Add an xAI key in Studio to unlock the tutor." : "Tutor unavailable: " + e.message);
+      setTutorNote(e.message === "NO_KEY" ? "Add an API key in Studio to unlock the tutor." : "Tutor unavailable: " + e.message);
     }
     setTutorBusy(false);
   };
@@ -1580,6 +1644,22 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   </button>
                 ))}
               </div>
+              <p className="kicker" style={{ marginTop: 18 }}>OR ANY SUBJECT{aiKey().trim() ? "" : " · BEST WITH AN AI KEY (STUDIO)"}</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                {TRY_TOPICS.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => { setTopic(t); startQuick(t); }}
+                    className="chip"
+                    style={{ fontSize: 13, padding: "6px 10px", borderStyle: "dashed" }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 10 }}>
+                Type anything above — “website design”, “email marketing”, “Excel formulas”. For a full multi-lesson course on a subject, use Studio.
+              </p>
             </div>
 
             {topSkills.length > 0 && (
@@ -1695,7 +1775,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 <div key={i} style={{ width: 8, height: 8, borderRadius: 99, background: "var(--ink)", animation: `blink 1s ${i * 0.18}s infinite` }} />
               ))}
             </div>
-            <p className="kicker" style={{ marginTop: 24 }}>{apiKey.trim() ? "GROK CODE WRITING" : "WRITING LESSON"}</p>
+            <p className="kicker" style={{ marginTop: 24 }}>{aiKey().trim() ? aiName().toUpperCase() + " WRITING" : "WRITING LESSON"}</p>
             <p style={{ fontWeight: 800, fontSize: 22, marginTop: 8 }}>{topic}</p>
           </div>
         )}
@@ -1877,7 +1957,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       {correct && <span className="hi" style={{ marginLeft: 8, padding: "1px 6px" }}>+{lastGain} XP</span>}
                     </p>
                     <p style={{ marginTop: 6, fontSize: 14, lineHeight: 1.55 }}>{step.explain}</p>
-                    {!correct && apiKey.trim() && (
+                    {!correct && aiKey().trim() && (
                       <button className="ghost" style={{ marginTop: 10 }} onClick={askTutor} disabled={tutorBusy}>
                         {tutorBusy ? "TUTOR THINKING…" : "WHY DID I MISS THIS?"}
                       </button>
@@ -1922,7 +2002,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       </div>
                     )}
                     <p style={{ marginTop: 6, fontSize: 14, lineHeight: 1.55 }}>{step.explain}</p>
-                    {!correct && apiKey.trim() && (
+                    {!correct && aiKey().trim() && (
                       <button className="ghost" style={{ marginTop: 10 }} onClick={askTutor} disabled={tutorBusy}>
                         {tutorBusy ? "TUTOR THINKING…" : "WHY DID I MISS THIS?"}
                       </button>
@@ -2046,18 +2126,22 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         {tab === "studio" && screen === "home" && (
           <div>
             <p style={{ marginTop: 24, fontSize: 14, color: "var(--pencil)", lineHeight: 1.55 }}>
-              Grok Code writes the lessons. This page executes every solution against its own tests before a lesson ships, and quiz answers get independently re-solved by Grok. Your mastery record is fed back into every prompt.
+              Your chosen AI engine writes the lessons on any subject. This page executes every generated solution against its own tests before a lesson ships, quiz answers get independently re-solved for verification, and your mastery record is fed back into every prompt.
             </p>
 
             <div style={{ marginTop: 20 }}>
-              <p className="kicker">XAI KEY</p>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <p className="kicker">AI ENGINE</p>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button className={"ghost" + (provider === "claude" ? " on" : "")} onClick={() => persistProvider("claude")}>CLAUDE · ANTHROPIC</button>
+                <button className={"ghost" + (provider === "grok" ? " on" : "")} onClick={() => persistProvider("grok")}>GROK · XAI</button>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
                 <input
                   className="field"
                   type={showKey ? "text" : "password"}
-                  value={apiKey}
-                  onChange={(e) => persistKey(e.target.value)}
-                  placeholder="xai-…"
+                  value={provider === "claude" ? claudeKey : apiKey}
+                  onChange={(e) => (provider === "claude" ? persistClaudeKey(e.target.value) : persistKey(e.target.value))}
+                  placeholder={provider === "claude" ? "sk-ant-…" : "xai-…"}
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck={false}
@@ -2066,17 +2150,26 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 <button className="ghost" onClick={() => setShowKey((s) => !s)} type="button">{showKey ? "HIDE" : "SHOW"}</button>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                {MODELS.map((m) => (
-                  <button key={m.id} type="button" onClick={() => persistModel(m.id)} className={"ghost" + (modelId === m.id ? " on" : "")}>
+                {(provider === "claude" ? CLAUDE_MODELS : MODELS).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => (provider === "claude" ? persistClaudeModel(m.id) : persistModel(m.id))}
+                    className={"ghost" + ((provider === "claude" ? claudeModel : modelId) === m.id ? " on" : "")}
+                  >
                     {m.label}
                   </button>
                 ))}
               </div>
-              <p className="mono" style={{ fontSize: 11, color: apiKey.trim() ? "var(--pen)" : "var(--pencil)", marginTop: 10 }}>
-                {apiKey.trim() ? "● " + (MODELS.find((m) => m.id === modelId) || {}).label + " · api.x.ai" : "○ No key — Studio will use the local teacher"}
+              <p className="mono" style={{ fontSize: 11, color: aiKey().trim() ? "var(--pen)" : "var(--pencil)", marginTop: 10 }}>
+                {aiKey().trim()
+                  ? "● " + ((provider === "claude" ? CLAUDE_MODELS.find((m) => m.id === claudeModel) : MODELS.find((m) => m.id === modelId)) || {}).label + (provider === "claude" ? " · api.anthropic.com" : " · api.x.ai")
+                  : "○ No key — Studio will use the local teacher"}
               </p>
               <p style={{ fontSize: 12, color: "var(--pencil)", lineHeight: 1.5, marginTop: 6 }}>
-                Create a key at console.x.ai. It stays in this browser. Default model is grok-code-fast-1.
+                {provider === "claude"
+                  ? "Create a key at console.anthropic.com. It stays in this browser. Opus 5 writes the best lessons; Haiku 4.5 is the budget option."
+                  : "Create a key at console.x.ai. It stays in this browser. Default model is grok-code-fast-1."}
               </p>
             </div>
 
