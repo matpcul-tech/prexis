@@ -669,6 +669,44 @@ function highlightCode(code) {
   if (last < code.length) out.push({ t: "plain", s: code.slice(last) });
   return out;
 }
+/* A code sample is offered as an editable sandbox only when it looks like
+   runnable JavaScript (not CSS, HTML, or an error-message exhibit). */
+const looksRunnableJS = (code) =>
+  typeof code === "string" &&
+  /(?:^|\n)\s*(?:const|let|var|function|async|Promise|console)\b/.test(code) &&
+  !/<[a-z!\/]/i.test(code) &&
+  !/^\s*[.#:@]/m.test(code) &&
+  !/^\s+at /m.test(code);
+
+function TryIt({ code }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(code);
+  const [out, setOut] = useState(null);
+  if (!open) {
+    return <button className="ghost" style={{ marginTop: 8 }} onClick={() => setOpen(true)}>EDIT &amp; RUN ▸</button>;
+  }
+  return (
+    <div style={{ marginTop: 8 }}>
+      <textarea
+        className="mono"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        spellCheck={false} autoCapitalize="off" autoCorrect="off"
+        style={{ width: "100%", minHeight: 110, fontSize: 13, lineHeight: 1.55, padding: "10px 12px", borderRadius: 6, background: "var(--paper-2)", border: "1.5px solid var(--ink)", resize: "vertical" }}
+      />
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button className="ghost on" onClick={async () => {
+          const r = await runJS(text);
+          setOut(r.ok ? (r.logs.length ? r.logs.join("\n") : "(ran fine — nothing printed; add a console.log)") : r.error);
+        }}>RUN</button>
+        <button className="ghost" onClick={() => { setText(code); setOut(null); }}>RESET</button>
+        <button className="ghost" onClick={() => { setOpen(false); setOut(null); }}>CLOSE</button>
+      </div>
+      {out !== null && <pre className="code" style={{ marginTop: 8 }}>{out}</pre>}
+    </div>
+  );
+}
+
 function CodeBlock({ code }) {
   return (
     <pre className="code">
@@ -750,6 +788,7 @@ function Prexis() {
   const [hintMarks, setHintMarks] = useState([]);
   const [loadingLabel, setLoadingLabel] = useState(null);
   const [pendingPick, setPendingPick] = useState(null);
+  const [exitArm, setExitArm] = useState(false);
   const [sel, setSel] = useState(null);
   const [num, setNum] = useState("");
   const [orderPool, setOrderPool] = useState([]);
@@ -993,6 +1032,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setHintText("");
     setTutorNote("");
     setTutorBusy(false);
+    setExitArm(false);
   }, [screen, lesson, idx]);
 
   useEffect(() => {
@@ -1848,11 +1888,21 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   else if (m === "wrong") { mk = "✗"; c = "var(--margin)"; }
                   else if (m === "read") { mk = "·"; c = "var(--ink)"; }
                   return (
-                    <div key={i} className="mark" style={{ borderColor: i === idx ? "var(--ink)" : c, color: c }}>{mk}</div>
+                    <div key={i} className="mark" role="img" aria-label={"Step " + (i + 1) + " of " + lesson.steps.length + (m ? ": " + (m === "right" ? "correct" : m === "wrong" ? "missed" : "read") : "")} style={{ borderColor: i === idx ? "var(--ink)" : c, color: c }}>{mk}</div>
                   );
                 })}
               </div>
-              <button className="mono" onClick={() => setScreen(lessonSource && lessonSource.courseId !== undefined && lessonSource.via !== "quick" ? "course" : "home")} style={{ background: "none", border: "none", color: "var(--pencil)", fontSize: 12 }}>EXIT</button>
+              <button
+                className="mono"
+                onClick={() => {
+                  if ((idx > 0 || sTotal > 0) && !exitArm) { setExitArm(true); return; }
+                  setExitArm(false);
+                  setScreen(lessonSource && lessonSource.courseId !== undefined && lessonSource.via !== "quick" ? "course" : "home");
+                }}
+                style={{ background: "none", border: "none", color: exitArm ? "var(--margin)" : "var(--pencil)", fontSize: 12, fontWeight: exitArm ? 600 : 400 }}
+              >
+                {exitArm ? "TAP AGAIN — XP WON'T BANK" : "EXIT"}
+              </button>
             </div>
 
             <p className="kicker" style={{ marginTop: 28 }}>{lesson.title.toUpperCase()} · {idx + 1}/{lesson.steps.length}</p>
@@ -1861,7 +1911,12 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <div>
                 <h2 className="display" style={{ fontWeight: 700, fontSize: 28, lineHeight: 1.12, margin: "10px 0 0" }}>{step.heading}</h2>
                 <p style={{ marginTop: 14, fontSize: 16, lineHeight: 1.65 }}>{step.body}</p>
-                {step.code && <div style={{ marginTop: 14 }}><CodeBlock code={step.code} /></div>}
+                {step.code && (
+                  <div style={{ marginTop: 14 }}>
+                    <CodeBlock code={step.code} />
+                    {looksRunnableJS(step.code) && <TryIt key={"c" + idx} code={step.code} />}
+                  </div>
+                )}
                 <button onClick={advance} className="primary" style={{ marginTop: 30 }}>Continue</button>
               </div>
             )}
@@ -1872,7 +1927,12 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 <div className="card" style={{ marginTop: 16, padding: "14px 16px", boxShadow: "none" }}>
                   <p className="kicker" style={{ margin: 0 }}>LET'S DO ONE TOGETHER</p>
                   <p style={{ margin: "8px 0 0", fontSize: 16, lineHeight: 1.55, fontWeight: 600 }}>{step.problem}</p>
-                  {step.code && <div style={{ marginTop: 10 }}><CodeBlock code={step.code} /></div>}
+                  {step.code && (
+                    <div style={{ marginTop: 10 }}>
+                      <CodeBlock code={step.code} />
+                      {looksRunnableJS(step.code) && <TryIt key={"w" + idx} code={step.code} />}
+                    </div>
+                  )}
                 </div>
                 <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
                   {step.steps.slice(0, workedN).map((s, i) => (
@@ -1907,7 +1967,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                     <span className="mono" style={{ fontSize: 12, color: "var(--pencil)" }}>{(step.label || step.variable).toUpperCase()}</span>
                     <span className="mono" style={{ fontSize: 14, fontWeight: 600 }}>{fmt(Number(sliderVal))}</span>
                   </div>
-                  <input type="range" min={step.min} max={step.max} step={step.stepSize || (Number(step.max) - Number(step.min)) / 100} value={sliderVal} onChange={(e) => setSliderVal(e.target.value)} style={{ marginTop: 10 }} />
+                  <input type="range" aria-label={step.label || step.variable} min={step.min} max={step.max} step={step.stepSize || (Number(step.max) - Number(step.min)) / 100} value={sliderVal} onChange={(e) => setSliderVal(e.target.value)} style={{ marginTop: 10 }} />
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, alignItems: "center" }}>
                     <span className="mono" style={{ fontSize: 12, color: "var(--pencil)" }}>{(step.valueLabel || "result").toUpperCase()}</span>
                     <span style={{ fontWeight: 900, fontSize: 24 }} className="hi">{fmt(exploreVal())}</span>
@@ -1930,7 +1990,10 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   ))}
                   {orderSeq.length === 0 && <p style={{ fontSize: 13, color: "var(--pencil)" }}>Tap the items below in order — first one first. Tap a placed item to send it back.</p>}
                 </div>
-                <div style={{ gap: 8, marginTop: 16, display: "flex", flexDirection: step.codeItems ? "column" : "row", flexWrap: step.codeItems ? "nowrap" : "wrap" }}>
+                {!checked && orderSeq.length < step.items.length && (
+                  <p className="kicker" style={{ marginTop: 16 }}>PICK #{orderSeq.length + 1} OF {step.items.length}</p>
+                )}
+                <div style={{ gap: 8, marginTop: 8, display: "flex", flexDirection: step.codeItems ? "column" : "row", flexWrap: step.codeItems ? "nowrap" : "wrap" }}>
                   {orderPool.map((it, i) => (
                     <button key={i} className={"chip" + (step.codeItems ? " codey" : "")} style={{ borderStyle: "dashed" }} onClick={() => { if (checked) return; setOrderPool((p) => p.filter((_, j) => j !== i)); setOrderSeq((s) => [...s, it]); }}>{it}</button>
                   ))}
@@ -2142,6 +2205,11 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <span className="hi">+{sXp} XP</span>
             </h2>
             <p className="mono" style={{ fontSize: 13, color: "var(--pencil)", marginTop: 14 }}>SCORE {sRight}/{sTotal}</p>
+            {!(lessonSource && lessonSource.review) && sTotal - sRight > 0 && (
+              <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", marginTop: 8, letterSpacing: ".06em" }}>
+                {sTotal - sRight} MISS{sTotal - sRight > 1 ? "ES" : ""} ADDED TO SMART REVIEW · DUE TOMORROW
+              </p>
+            )}
             {todayXp >= prefs.goal && (
               <p className="mono" style={{ fontSize: 12, color: "var(--pen)", marginTop: 10 }}>★ DAILY GOAL HIT · {todayXp}/{prefs.goal}</p>
             )}
