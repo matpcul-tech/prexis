@@ -243,7 +243,7 @@ const lessonSchema = `Allowed step types:
 concept: {"type":"concept","heading":"3 to 6 words","body":"2 or 3 short plain sentences teaching one idea","code":"optional short JavaScript snippet"}
 worked: {"type":"worked","heading":"3 to 6 words","problem":"one concrete problem stated in a sentence","steps":["first move and the reasoning behind it","second move","final move giving the answer"],"takeaway":"one memorable sentence stating the rule used","code":"optional snippet the problem refers to"}, a worked example the learner reveals one step at a time. steps is 3 to 5 short strings that SOLVE the problem completely. Not graded.
 mcq: {"type":"mcq","prompt":"one clear question","options":["a","b","c","d"],"answer":0,"explain":"1 or 2 sentences on why","code":"optional snippet the question refers to"}
-numeric: {"type":"numeric","prompt":"...","answer":12.5,"tolerance":0.5,"explain":"..."}
+numeric: {"type":"numeric","prompt":"...","answer":12.5,"tolerance":0.5,"explain":"..."} where a numeric step SHOULD also carry "gen":{"vars":{"n":[4,12,2]},"answer":"n*3","round":0} whenever the question is formulaic: vars are named [min,max,step] ranges, gen.answer is a mathjs expression over them, plus "prompt" and "explain" INSIDE gen: copies of the step prompt and explain with every rolled number written as {n}. The step-level prompt and explain stay concrete. This lets the app re-roll the question with fresh numbers forever.
 order: {"type":"order","prompt":"instruction to arrange the items","items":["first","second","third","fourth"],"explain":"...","codeItems":false} where items MUST already be listed in the correct order. Set codeItems to true only when the items are lines of code.
 output: {"type":"output","code":"const a = [1, 2];\\nconsole.log(a.length);","prompt":"What does this print?","expect":"2","explain":"..."} where code is valid JavaScript that runs without errors and prints via console.log, and expect is the exact printed output.
 code: {"type":"code","prompt":"one small clear coding task","starter":"function add(a, b) {\\n  \\n}","tests":[{"call":"add(2, 3)","expect":5},{"call":"add(0, 0)","expect":0}],"solution":"function add(a, b) {\\n  return a + b;\\n}","explain":"1 or 2 sentences"} where tests are expressions calling the learner's JavaScript, expect is the exact return value as JSON, and solution MUST pass every test.
@@ -328,6 +328,45 @@ async function askClaude(prompt, { key, model, maxTokens, signal } = {}) {
 
 const deep = (x) => JSON.parse(JSON.stringify(x));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/* Parameterized questions, Brilliant-style: a numeric step may carry
+   gen = { vars, answer, round?, tolerance?, show? }. vars are named
+   [min, max, step] ranges; answer is a mathjs expression over them;
+   show holds derived values for the explain text. The step is re-rolled
+   at every launch, so replays and practice runs never repeat numbers.
+   Any error falls back to the authored step unchanged. */
+const genFmt = (v) => {
+  if (typeof v !== "number" || !isFinite(v)) return String(v);
+  const r = Math.round(v * 100) / 100;
+  return Number.isInteger(r) && Math.abs(r) >= 1000 ? r.toLocaleString("en-US") : String(r);
+};
+const rollStep = (s) => {
+  if (!s || s.type !== "numeric" || !s.gen || !s.gen.vars) return s;
+  try {
+    const vals = {};
+    for (const [k, spec] of Object.entries(s.gen.vars)) {
+      const [min, max, st] = spec.map(Number);
+      const count = Math.floor((max - min) / st + 1e-9) + 1;
+      vals[k] = Math.round((min + st * Math.floor(Math.random() * count)) * 1e6) / 1e6;
+    }
+    const ans = math.evaluate(s.gen.answer, { ...vals });
+    if (typeof ans !== "number" || !isFinite(ans)) return s;
+    const digits = s.gen.round != null ? s.gen.round : 2;
+    const answer = Math.round(ans * Math.pow(10, digits)) / Math.pow(10, digits);
+    const shown = { ...vals, A: answer };
+    for (const [k, expr] of Object.entries(s.gen.show || {})) {
+      const v = math.evaluate(expr, { ...vals });
+      shown[k] = Math.round(v * 100) / 100;
+    }
+    const sub = (t) => (typeof t === "string" ? t.replace(/\{(\w+)\}/g, (m, k) => (k in shown ? genFmt(shown[k]) : m)) : t);
+    // templates live inside gen so the authored concrete text is the fallback
+    const out = { ...s, prompt: sub(s.gen.prompt || s.prompt), explain: sub(s.gen.explain || s.explain), answer, rolled: true };
+    if (s.gen.tolerance != null) out.tolerance = s.gen.tolerance;
+    return out;
+  } catch (e) {
+    return s;
+  }
+};
+
 const shuffle = (arr) => {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -710,19 +749,19 @@ function localCourseLesson(subject, lessonTitle, level) {
       c("Watch one problem solved", `The fastest way into ${S} is watching one real problem worked start to finish, then redoing it from memory. This lesson walks that method.`),
       { type: "worked", heading: "The redo method", problem: `You found a solid worked example for ${S}. How do you turn it into skill instead of a nice read?`, steps: ["Read it once, start to finish, without notes. You are mapping the shape, not memorizing.", "Cover the solution and redo it from the problem statement alone. Struggle is the point.", "Compare your attempt line by line. Each difference is a gap with a name.", "Redo just the gap tomorrow. A named gap closed beats a full rereading."], takeaway: "A worked example is a workout you copy, not an article you read." },
       { type: "mcq", prompt: "Halfway through redoing an example you get stuck. Best move?", options: ["Peek at the whole solution and continue reading", "Peek at only the next line, then cover it again", "Abandon it for an easier example", "Start over from the top"], answer: 1, explain: "The smallest peek that unblocks you keeps the retrieval work yours." },
-      { type: "numeric", prompt: "Reading an example takes 5 minutes. Redoing it takes 15. You have one hour. How many examples can you fully read and redo?", answer: 3, tolerance: 0, explain: "20 minutes each, so 3. Three redone beats twelve skimmed." },
+      { type: "numeric", prompt: "Reading an example takes 5 minutes. Redoing it takes 15. You have one hour. How many examples can you fully read and redo?", answer: 3, tolerance: 0, explain: "20 minutes each, so 3. Three redone beats twelve skimmed.", gen: { vars: { a: [4, 6, 1], b: [12, 18, 3], H: [60, 120, 30] }, answer: "floor(H/(a+b))", round: 0, show: { e: "a+b" }, prompt: "Reading an example takes {a} minutes. Redoing it takes {b}. You have {H} minutes. How many examples can you fully read and redo?", explain: "{e} minutes each, so {A}. A few redone beats a dozen skimmed." } },
       c("Keep this", `Collect two good worked examples for ${S} and run the redo method on both this week.`),
     ],
     "common mistakes": [
       c("Mistakes are the syllabus", `Beginners in ${S} mostly make the same handful of errors. Learning them by name is cheaper than making each one slowly yourself.`),
       { type: "mcq", prompt: "The most expensive beginner mistake in any field is…", options: ["Practicing fundamentals too long", "Skipping fundamentals to imitate expert output", "Asking basic questions", "Using beginner-grade tools"], answer: 1, explain: "Copying expert results without the base skips the layer everything else stands on. It reads as progress and compounds as debt." },
       { type: "order", prompt: "Order these habits from most to least damaging.", items: ["Never checking your work against a source of truth", "Practicing only what already feels easy", "Studying in rare long marathons", "Keeping messy notes"], explain: "No feedback loop is fatal. Comfort practice stalls you. Cramming fades. Messy notes are survivable.", codeItems: false },
-      { type: "numeric", prompt: "A mistake caught in review costs 2 minutes. Uncaught, it costs 30 at the end. Reviewing catches 5 mistakes. Minutes saved?", answer: 140, tolerance: 0, explain: "5 × 30 is 150 lost, versus 5 × 2 spent. 150 minus 10 is 140. Early checks are cheap insurance." },
+      { type: "numeric", prompt: "A mistake caught in review costs 2 minutes. Uncaught, it costs 30 at the end. Reviewing catches 5 mistakes. Minutes saved?", answer: 140, tolerance: 0, explain: "5 × 30 is 150 lost, versus 5 × 2 spent. 150 minus 10 is 140. Early checks are cheap insurance.", gen: { vars: { u: [20, 40, 5], n: [4, 8, 1] }, answer: "n*u - n*2", round: 0, show: { lost: "n*u", spent: "n*2" }, prompt: "A mistake caught in review costs 2 minutes. Uncaught, it costs {u} at the end. Reviewing catches {n} mistakes. Minutes saved?", explain: "{n} × {u} is {lost} lost, versus {n} × 2 spent. {lost} minus {spent} is {A}. Early checks are cheap insurance." } },
       c("Keep this", `Keep a mistake log for ${S}: date, error, one-line rule that prevents it. Ten entries in, patterns appear.`),
     ],
     "a short drill": [
       c("Drills isolate one motion", `A drill takes one small piece of ${S} and repeats it until it is automatic. Short, focused, scored. Ten minutes of drill beats an hour of general review.`),
-      { type: "numeric", prompt: "You drill 10 minutes a day for 6 days a week. Minutes of focused practice in 4 weeks?", answer: 240, tolerance: 0, explain: "10 × 6 × 4 is 240. Four hours of pure reps, gathered in slices you will actually do." },
+      { type: "numeric", prompt: "You drill 10 minutes a day for 6 days a week. Minutes of focused practice in 4 weeks?", answer: 240, tolerance: 0, explain: "10 × 6 × 4 is 240. Four hours of pure reps, gathered in slices you will actually do.", gen: { vars: { m: [8, 15, 1], d: [4, 6, 1], w: [3, 5, 1] }, answer: "m*d*w", round: 0, prompt: "You drill {m} minutes a day for {d} days a week. Minutes of focused practice in {w} weeks?", explain: "{m} × {d} × {w} is {A}. Hours of pure reps, gathered in slices you will actually do." } },
       { type: "order", prompt: "Order one clean drill cycle.", items: ["Pick one narrow sub-skill", "Set a 10 minute timer", "Do reps and count your misses", "Log the score for next time"], explain: "Narrow, timed, scored, logged. The score is what turns repetition into progress you can see.", codeItems: false },
       { type: "mcq", prompt: "Your drill scores stop improving for a week. You should…", options: ["Double the drill time", "Make the drill slightly harder or faster", "Switch subjects entirely", "Keep going unchanged for a month"], answer: 1, explain: "A plateau means the drill stopped challenging you. Raise the difficulty a notch; do not just add volume." },
       c("Keep this", `Design one 10 minute drill for ${S} tonight. If you cannot score it, narrow it until you can.`),
@@ -730,7 +769,7 @@ function localCourseLesson(subject, lessonTitle, level) {
     "transfer problem": [
       c("Use it somewhere new", `Real knowledge of ${S} shows up when the problem does not look like the practice. Transfer is the test that matters, and it can be practiced deliberately.`),
       { type: "mcq", prompt: "The best sign you have actually learned an idea is…", options: ["You can recite its definition", "You recognized it inside an unfamiliar problem", "You highlighted it twice", "You can name who invented it"], answer: 1, explain: "Recognition in the wild is the whole game. Definitions are the entry ticket, not the skill." },
-      { type: "numeric", prompt: "Solving familiar problems, you succeed 9 times in 10. On novel ones, 6 in 10. Out of 20 novel problems, how many do you expect to solve?", answer: 12, tolerance: 0, explain: "20 × 0.6 is 12. The gap between 9 in 10 and 6 in 10 is exactly the transfer gap this lesson attacks." },
+      { type: "numeric", prompt: "Solving familiar problems, you succeed 9 times in 10. On novel ones, 6 in 10. Out of 20 novel problems, how many do you expect to solve?", answer: 12, tolerance: 0, explain: "20 × 0.6 is 12. The gap between 9 in 10 and 6 in 10 is exactly the transfer gap this lesson attacks.", gen: { vars: { r: [4, 8, 1], N: [10, 30, 10] }, answer: "N*r/10", round: 0, show: { rd: "r/10" }, prompt: "Solving familiar problems, you succeed 9 times in 10. On novel ones, {r} in 10. Out of {N} novel problems, how many do you expect to solve?", explain: "{N} × {rd} is {A}. The gap between 9 in 10 and {r} in 10 is exactly the transfer gap this lesson attacks." } },
       { type: "order", prompt: "Order an attack on an unfamiliar problem.", items: ["Restate the problem in your own words", "Ask which known idea has this shape", "Try the mapping on a small piece", "Solve fully, then check the fit"], explain: "Match the shape before the method. Forcing a favorite tool onto every problem is transfer's biggest enemy.", codeItems: false },
       c("Keep this", `Once a week, hunt one problem that uses ${S} in a setting you have never practiced. That hunt is the curriculum.`),
     ],
@@ -738,7 +777,7 @@ function localCourseLesson(subject, lessonTitle, level) {
       c("Teaching is the final exam", `If you can explain a piece of ${S} to a beginner without hiding behind jargon, you own it. Where your explanation stalls is exactly where your understanding does.`),
       { type: "order", prompt: "Order the teach-back method.", items: ["Write the idea as if for a smart 12 year old", "Mark every spot where you reached for jargon", "Relearn just those spots", "Rewrite the explanation simpler"], explain: "Jargon is where understanding hides. Each marked word is a gap with an address.", codeItems: false },
       { type: "mcq", prompt: "While explaining, you catch yourself saying \"it just works that way\". That phrase is…", options: ["A fine simplification for beginners", "The exact location of your own gap", "Proof the topic is too advanced", "A sign to change examples"], answer: 1, explain: "\"It just works\" marks the edge of your map. That is where to study next, and finding it is the method working." },
-      { type: "numeric", prompt: "Your first explanation used 300 words. After two rewrites it is 40% shorter. How many words now?", answer: 180, tolerance: 0, explain: "300 × 0.6 is 180. Shorter and still true means you found the actual structure." },
+      { type: "numeric", prompt: "Your first explanation used 300 words. After two rewrites it is 40% shorter. How many words now?", answer: 180, tolerance: 0, explain: "300 × 0.6 is 180. Shorter and still true means you found the actual structure.", gen: { vars: { W: [200, 400, 50], p: [30, 60, 10] }, answer: "W*(100-p)/100", round: 0, show: { kd: "(100-p)/100" }, prompt: "Your first explanation used {W} words. After two rewrites it is {p}% shorter. How many words now?", explain: "{W} × {kd} is {A}. Shorter and still true means you found the actual structure." } },
       c("Keep this", `Explain one piece of ${S} out loud today to a person, a pet, or a wall. The stall points are your syllabus for tomorrow.`),
     ],
   };
@@ -1388,6 +1427,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
      (both curated and AI lessons otherwise develop one). */
   const prepSteps = (steps) =>
     steps.map((s) => {
+      s = rollStep(s);
       if (s.type === "mcq" && Array.isArray(s.options) && typeof s.answer === "number") {
         const idx = shuffle(s.options.map((_, i) => i));
         return { ...s, options: idx.map((i) => s.options[i]), answer: idx.indexOf(s.answer) };
@@ -1763,11 +1803,92 @@ ${graded
     generateOne(courseId, worst.u, worst.l);
   };
 
-  const startLibraryLesson = (courseId, u, l) => {
+  const startLibraryLesson = async (courseId, u, l) => {
     const course = library.courses.find((c) => c.id === courseId);
     const ls = course.units[u].lessons[l];
     if (ls.status !== "ready") return;
-    launchLesson({ title: ls.title, steps: ls.steps }, { courseId, u, l }, course.subject);
+    let steps = ls.steps;
+    const replayScore = (learner.courseProgress || {})[courseId + ":" + u + ":" + l];
+    if (replayScore && aiKey().trim()) {
+      // replaying a passed lesson with a key: re-test with verified fresh
+      // variants instead of the questions the learner already answered
+      const fixed = steps.map((st, i) => ({ st, i })).filter((x) => ["mcq", "numeric", "order", "output"].includes(x.st.type) && !x.st.gen);
+      if (fixed.length) {
+        setLoadingLabel("Fresh variants");
+        setScreen("loading");
+        try {
+          const res = await askAI(
+            `You are re-testing a learner who already passed this lesson once. For each question below, write ONE fresh variant testing the SAME idea with different surface details (different numbers, strings, names, or scenario). Keep the exact same "type" and JSON shape as the original, including a 1-2 sentence "explain". For type output: expect MUST be exactly what the code prints. For type order: items MUST be listed in the correct order.
+Originals:
+${JSON.stringify(fixed.map((x, k) => ({ i: k, step: x.st })))}
+Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
+            { maxTokens: 2600 }
+          );
+          const next = deep(steps);
+          for (const v of res.variants || []) {
+            const x = fixed[v.i];
+            if (x && (await validVariant(x.st, v.step))) next[x.i] = { ...v.step };
+          }
+          steps = next;
+        } catch (e) { console.error("replay variants failed", e); }
+        setLoadingLabel(null);
+      }
+    }
+    launchLesson({ title: ls.title, steps }, { courseId, u, l }, course.subject);
+  };
+
+  /* Practice mode, Brilliant-style: an on-demand set of graded questions
+     for one subject, drawn from its library lessons. Steps from lessons
+     you scored low on are weighted heaviest, your open review misses for
+     the subject lead the set, and parameterized questions re-roll, so no
+     two practice runs are the same. */
+  const startPractice = (label) => {
+    const key = topicKey(label);
+    const gradedT = ["mcq", "numeric", "order", "output", "code"];
+    const pool = [];
+    library.courses.forEach((c) => {
+      if (topicKey(c.subject) !== key && topicKey(c.title) !== key) return;
+      c.units.forEach((un, ui) =>
+        un.lessons.forEach((l, li) => {
+          if (l.status !== "ready" || !Array.isArray(l.steps)) return;
+          const sc = (learner.courseProgress || {})[c.id + ":" + ui + ":" + li];
+          let weight = 1.5; // unseen lessons: mildly preferred
+          if (sc) {
+            const [r, t] = String(sc).split("/").map(Number);
+            weight = t ? 1 + (1 - r / t) * 3 : 1; // weak lessons: heavily preferred
+          }
+          l.steps.forEach((st) => { if (gradedT.includes(st.type)) pool.push({ st, weight, from: ui + ":" + li }); });
+        })
+      );
+    });
+    if (pool.length < 3) { startQuick(label); return; }
+    const seen = new Set();
+    const steps = [];
+    // open review misses for this subject lead the set
+    deck.filter((cd) => topicKey(cd.topic) === key)
+      .sort((a, b) => (b.lapses || 0) - (a.lapses || 0))
+      .slice(0, 2)
+      .forEach((cd) => { const k = cardKeyOf(cd.step); if (!seen.has(k)) { seen.add(k); steps.push(deep(cd.step)); } });
+    // weighted sample without replacement from the pool
+    const bag = [...pool];
+    let lastFrom = null;
+    while (steps.length < 8 && bag.length) {
+      const total = bag.reduce((a, x) => a + x.weight * (x.from === lastFrom ? 0.35 : 1), 0);
+      let r = Math.random() * total;
+      let pick = 0;
+      for (let i = 0; i < bag.length; i++) {
+        r -= bag[i].weight * (bag[i].from === lastFrom ? 0.35 : 1);
+        if (r <= 0) { pick = i; break; }
+      }
+      const chosen = bag.splice(pick, 1)[0];
+      const k = cardKeyOf(chosen.st);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      lastFrom = chosen.from;
+      steps.push(deep(chosen.st));
+    }
+    if (steps.length < 3) { startQuick(label); return; }
+    launchLesson({ title: "Practice: " + label, steps }, { via: "quick", practice: true }, label);
   };
 
   const step = lesson ? lesson.steps[idx] : null;
@@ -2420,7 +2541,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   </div>
                 </div>
               )}
-              <button className="primary" style={{ marginTop: 26 }} onClick={() => { setScreen("home"); startQuick(sk.label); }}>Practice {sk.label} now</button>
+              <button className="primary" style={{ marginTop: 26 }} onClick={() => { setScreen("home"); startPractice(sk.label); }}>Practice {sk.label} now</button>
               <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 10 }}>
                 Every graded step updates this score. The dashed lines are where lessons step up to intermediate (55) and advanced (85).
               </p>
@@ -2433,6 +2554,12 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <button className="mono" onClick={() => setScreen("home")} style={{ background: "none", border: "none", padding: 0, marginTop: 24, color: "var(--pencil)", fontSize: 12 }}>← BACK</button>
             <h1 className="display" style={{ fontWeight: 700, fontSize: 28, lineHeight: 1.12, margin: "14px 0 0" }}>{activeCourse.title}</h1>
             <p className="kicker" style={{ marginTop: 6 }}>{activeCourse.level.toUpperCase()}</p>
+            {activeCourse.units.some((un) => un.lessons.some((l) => l.status === "ready")) && (
+              <button className="ghost" style={{ width: "100%", marginTop: 16, padding: "10px 12px" }}
+                onClick={() => startPractice(activeCourse.subject || activeCourse.title)}>
+                PRACTICE · FRESH QUESTIONS EVERY RUN
+              </button>
+            )}
             {activeCourse.units.map((u, ui) => (
               <div key={ui} style={{ marginTop: 24 }}>
                 <p className="kicker">UNIT {ui + 1} · {u.title.toUpperCase()}</p>
