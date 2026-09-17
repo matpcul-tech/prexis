@@ -6,6 +6,7 @@
 - Voice: direct, specific, no cheerleading. Short sentences over long ones.
 - The AI lesson-generation prompt in index.html also forbids dashes; keep that rule if the prompt is rewritten.
 - `tidyStr` retro-converts dashes in stored generated lessons; do not remove that.
+- Step arrays in content.js carry trailing commas. Scripted insertions must not add a second comma; validate for array holes after any content edit (holes become null steps after the deep clone and crash tidyLesson).
 
 ## Architecture (read before editing)
 

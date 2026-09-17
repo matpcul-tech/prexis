@@ -180,6 +180,7 @@ const { useState, useEffect, useRef, useMemo } = React;
 const LEARNER_KEY = "prexis-learner-v1";
 const LIB_KEY = "prexis-library-v1";
 const PREFS_KEY = "prexis-prefs-v1";
+const PROJECT_KEY = "prexis-project-v1";
 const SKILLS_KEY = "prexis-skills-v1";
 const DECK_KEY = "prexis-deck-v1";
 const KEY_KEY = "prexis-xai-key";
@@ -432,6 +433,40 @@ const fmt = (n) => {
   if (a >= 1) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return Number(n.toPrecision(3)).toString();
 };
+/* Build-along project: a real page the learner grows lesson by lesson.
+   Rendered in a sandboxed iframe (same-origin for measuring, scripts
+   never run). Checks are measured from the RENDERED page, not matched
+   as strings, except cssContains which reads the stylesheet text. */
+const DEFAULT_PROJECT = {
+  html: "<h1>My site</h1>\n<p>Built one lesson at a time.</p>",
+  css: "/* Your styles grow here, lesson by lesson. */\nbody {\n  font-family: system-ui, sans-serif;\n  margin: 24px;\n}",
+};
+const buildDoc = (p) =>
+  '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + (p.css || "") + "</style></head><body>" + (p.html || "") + "</body></html>";
+const runBuildChecks = (doc, win, checks, cssText) =>
+  (checks || []).map((c) => {
+    try {
+      if (c.cssContains) return { label: c.label, pass: String(cssText || "").includes(c.cssContains) };
+      const els = Array.from(doc.body.querySelectorAll(c.sel));
+      let pass = false;
+      if (c.exists) pass = els.length > 0;
+      else if (c.count) pass = els.length >= c.count;
+      else if (c.attr && c.every) pass = els.length > 0 && els.every((el) => ((el.getAttribute(c.attr) || "").trim().length > 0));
+      else if (c.attr) pass = els.some((el) => { const v = el.getAttribute(c.attr) || ""; return c.contains ? v.includes(c.contains) : v.trim().length > 0; });
+      else if (c.style) pass = els.some((el) => {
+        const v = win.getComputedStyle(el)[c.style];
+        if (c.equals) return v === c.equals;
+        if (c.minPx != null) return parseFloat(v) >= c.minPx;
+        if (c.not) return v !== c.not;
+        return false;
+      });
+      else if (c.textMin) pass = els.some((el) => (el.textContent || "").trim().length >= c.textMin);
+      return { label: c.label, pass };
+    } catch (e) {
+      return { label: c.label, pass: false };
+    }
+  });
+
 const dayStr = (offset) => {
   const d = new Date();
   d.setDate(d.getDate() + (offset || 0));
@@ -1061,6 +1096,27 @@ function SkillHistory({ hist }) {
   );
 }
 
+function ProjectEditor({ project, onChange, frameRef, tall }) {
+  const ta = {
+    marginTop: 6, width: "100%", minHeight: tall ? 160 : 110, background: "var(--paper-2)",
+    border: "1.5px solid var(--box)", borderRadius: 6, fontSize: 13, lineHeight: 1.55,
+    padding: "10px 12px", resize: "vertical",
+  };
+  return (
+    <div>
+      <p className="kicker" style={{ marginTop: 16 }}>PAGE (HTML)</p>
+      <textarea value={project.html} onChange={(e) => onChange({ ...project, html: e.target.value })} className="mono"
+        autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
+      <p className="kicker" style={{ marginTop: 12 }}>STYLES (CSS)</p>
+      <textarea value={project.css} onChange={(e) => onChange({ ...project, css: e.target.value })} className="mono"
+        autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
+      <p className="kicker" style={{ marginTop: 12 }}>LIVE PREVIEW</p>
+      <iframe ref={frameRef} title="Your site" sandbox="allow-same-origin" srcDoc={buildDoc(project)}
+        style={{ marginTop: 6, width: "100%", height: tall ? 320 : 220, background: "#ffffff", border: "1.5px solid var(--box)", borderRadius: 6 }} />
+    </div>
+  );
+}
+
 function SkinPicker({ current, onPick }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
@@ -1134,6 +1190,9 @@ function Prexis() {
   const [genQueue, setGenQueue] = useState([]);
   const [genErrors, setGenErrors] = useState({});
   const genCancelRef = useRef(false);
+  const [project, setProject] = useState(DEFAULT_PROJECT);
+  const buildFrameRef = useRef(null);
+  const [buildResults, setBuildResults] = useState(null);
   const genAbortRef = useRef(null);
   const [cancelledKey, setCancelledKey] = useState(null);
   const [expandedId, setExpandedId] = useState("core-js");
@@ -1199,6 +1258,11 @@ function Prexis() {
     setModelId(DEFAULT_MODEL); setClaudeModel(DEFAULT_CLAUDE_MODEL);
     setProvider("claude");
     setGenErrors({});
+    setProject(DEFAULT_PROJECT);
+    try {
+      const r = await storage.get(PROJECT_KEY);
+      if (r && r.value) setProject({ ...DEFAULT_PROJECT, ...JSON.parse(r.value) });
+    } catch (e) {}
     {
       try {
         const r = await storage.get(LEARNER_KEY);
@@ -1294,6 +1358,7 @@ function Prexis() {
   const persistPrefs = async (next) => { setPrefs(next); try { await storage.set(PREFS_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistSkills = async (next) => { setSkills(next); skillsRef.current = next; try { await storage.set(SKILLS_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistDeck = async (next) => { setDeck(next); deckRef.current = next; try { await storage.set(DECK_KEY, JSON.stringify(next)); } catch (e) {} };
+  const persistProject = async (next) => { setProject(next); try { await storage.set(PROJECT_KEY, JSON.stringify(next)); } catch (e) {} };
 
   /* ---- backup: everything but API keys, as pasteable JSON ---- */
   const doExport = () => {
@@ -1305,6 +1370,7 @@ function Prexis() {
       prefs,
       skills,
       deck,
+      project,
       provider,
       modelId,
       claudeModel,
@@ -1328,6 +1394,7 @@ function Prexis() {
       if (d.learner) persistLearner({ courseProgress: {}, dayXp: null, ...d.learner });
       if (d.library) persistLib(withBuiltins(d.library));
       if (d.prefs) persistPrefs({ ...DEFAULT_PREFS, ...d.prefs, onboarded: true });
+      if (d.project) persistProject({ ...DEFAULT_PROJECT, ...d.project });
       if (d.skills) persistSkills(d.skills);
       if (Array.isArray(d.deck)) persistDeck(d.deck);
       if (d.provider) persistProvider(d.provider);
@@ -1448,6 +1515,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setWorkedN(0);
     setHintN(0);
     setRetries(0);
+    setBuildResults(null);
     setRevealed(false);
     setElim([]);
     setRevealN(0);
@@ -1942,7 +2010,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
   };
 
   const step = lesson ? lesson.steps[idx] : null;
-  const gradedTypes = ["mcq", "numeric", "order", "output", "code"];
+  const gradedTypes = ["mcq", "numeric", "order", "output", "code", "build"];
   const isGraded = step && gradedTypes.includes(step.type);
   const sharedControls = step && ["mcq", "numeric", "order", "output"].includes(step.type);
 
@@ -1955,6 +2023,31 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
   const feedback = (kind) => {
     if (prefs.sound) SFX[kind] && SFX[kind]();
     if (prefs.haptics) { try { navigator.vibrate && navigator.vibrate(HAPTIC[kind] || [20]); } catch (e) {} }
+  };
+
+  /* Grade a build step by measuring the learner's RENDERED page. */
+  const checkBuild = () => {
+    const fr = buildFrameRef.current;
+    if (!fr || !fr.contentDocument || !fr.contentWindow) return;
+    const res = runBuildChecks(fr.contentDocument, fr.contentWindow, step.checks, project.css || "");
+    setBuildResults(res);
+    const ok = res.length > 0 && res.every((r) => r.pass);
+    if (ok) {
+      feedback("right");
+      setChecked(true);
+      setCorrect(true);
+      setMark(idx, "right");
+      recordHints(idx);
+      setSTotal((x) => x + 1);
+      const g = stepGain();
+      setLastGain(g);
+      recordGain(idx, g);
+      setSXp((x) => x + g);
+      setSRight((x) => x + 1);
+    } else {
+      feedback("wrong");
+      setRetries((r) => r + 1);
+    }
   };
 
   const check = () => {
@@ -2599,6 +2692,18 @@ Respond with ONLY valid JSON: {"note":"..."}`,
           );
         })()}
 
+        {tab === "learn" && screen === "workshop" && (
+          <div>
+            <button className="mono" onClick={() => setScreen(activeCourseId ? "course" : "home")} style={{ background: "none", border: "none", padding: 0, marginTop: 24, color: "var(--pencil)", fontSize: 12 }}>← BACK</button>
+            <p className="kicker" style={{ marginTop: 18 }}>WORKSHOP</p>
+            <h1 className="display" style={{ fontWeight: 700, fontSize: 28, lineHeight: 1.12, margin: "6px 0 0" }}>My site</h1>
+            <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 8 }}>
+              The page you are building through the course. Edit it freely here; the build steps inside lessons check this same page. It saves as you type and belongs to this profile.
+            </p>
+            <ProjectEditor project={project} onChange={persistProject} frameRef={buildFrameRef} tall={true} />
+          </div>
+        )}
+
         {tab === "learn" && screen === "course" && activeCourse && (
           <div>
             <button className="mono" onClick={() => setScreen("home")} style={{ background: "none", border: "none", padding: 0, marginTop: 24, color: "var(--pencil)", fontSize: 12 }}>← BACK</button>
@@ -2608,6 +2713,11 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <button className="ghost" style={{ width: "100%", marginTop: 16, padding: "10px 12px" }}
                 onClick={() => startPractice(activeCourse.subject || activeCourse.title)}>
                 PRACTICE · FRESH QUESTIONS EVERY RUN
+              </button>
+            )}
+            {activeCourse.units.some((un) => un.lessons.some((l) => (l.steps || []).some((st) => st.type === "build"))) && (
+              <button className="ghost" style={{ width: "100%", marginTop: 8, padding: "10px 12px" }} onClick={() => setScreen("workshop")}>
+                MY SITE · OPEN THE WORKSHOP
               </button>
             )}
             {activeCourse.units.map((u, ui) => (
@@ -2637,8 +2747,8 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                           <div className="card" style={{ marginTop: 6, padding: "10px 12px", boxShadow: "none" }}>
                             <p className="mono" style={{ margin: 0, fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em" }}>
                               {l.steps.length} STEPS · ~{Math.max(2, Math.round(l.steps.length * 0.7))} MIN
-                              {l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code"].includes(st.type)).length > 0
-                                ? " · " + l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code"].includes(st.type)).length + " GRADED"
+                              {l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build"].includes(st.type)).length > 0
+                                ? " · " + l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build"].includes(st.type)).length + " GRADED"
                                 : ""}
                               {score ? " · LAST " + score : ""}
                             </p>
@@ -2746,6 +2856,55 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   </button>
                 ) : (
                   <button onClick={advance} className="primary" style={{ marginTop: 22 }}>Now you try</button>
+                )}
+              </div>
+            )}
+
+            {step.type === "build" && (
+              <div>
+                <p className="kicker" style={{ marginTop: 4 }}>BUILD · YOUR SITE</p>
+                <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
+                <div style={{ marginTop: 12 }}>
+                  {(step.checks || []).map((c, i) => {
+                    const r = buildResults && buildResults[i];
+                    return (
+                      <p key={i} className="mono" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5, color: r ? (r.pass ? "var(--pen)" : "var(--margin)") : "var(--pencil)" }}>
+                        {r ? (r.pass ? "✓ " : "✗ ") : "○ "}{c.label}
+                      </p>
+                    );
+                  })}
+                </div>
+                {hintN > 0 && step.example && (
+                  <div className="hintbox" style={{ marginTop: 12 }}>
+                    <p className="kicker" style={{ margin: "0 0 6px" }}>EXAMPLE</p>
+                    <CodeBlock code={step.example} />
+                  </div>
+                )}
+                <ProjectEditor project={project} onChange={persistProject} frameRef={buildFrameRef} tall={false} />
+                {checked ? (
+                  <div>
+                    <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 6, background: "var(--paper-2)", border: "1.5px solid var(--pen)" }}>
+                      <p className="mono" style={{ fontSize: 13, fontWeight: 600, color: "var(--pen)" }}>
+                        ✓ BUILT AND VERIFIED<span className="hi" style={{ marginLeft: 8, padding: "1px 6px" }}>+{lastGain} XP</span>
+                      </p>
+                      <p style={{ marginTop: 6, fontSize: 14, lineHeight: 1.55 }}>{step.explain}</p>
+                    </div>
+                    <button onClick={advance} className="primary" style={{ marginTop: 14 }}>{idx + 1 >= lesson.steps.length ? "Finish" : "Continue"}</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                      <button onClick={checkBuild} className="primary" style={{ flex: 1 }}>Check my site</button>
+                      {step.example && hintN === 0 && (
+                        <button onClick={() => setHintN(1)} className="ghost" style={{ padding: "10px 12px" }}>SHOW EXAMPLE (−5 XP)</button>
+                      )}
+                    </div>
+                    {buildResults && (
+                      <p className="mono" style={{ fontSize: 11, color: "var(--margin)", marginTop: 8, lineHeight: 1.5 }}>
+                        NOT YET. Fix the ✗ rows and check again. A pass is still worth {Math.max(3, 15 - 5 * hintN - 5 * retries)} XP.
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -3007,7 +3166,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <div style={{ marginTop: 26, textAlign: "left", maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
                 <p className="kicker">XP LEDGER</p>
                 {lesson.steps.map((s, i) => {
-                  if (!["mcq", "numeric", "order", "output", "code"].includes(s.type)) return null;
+                  if (!["mcq", "numeric", "order", "output", "code", "build"].includes(s.type)) return null;
                   const m = marks[i];
                   const assists = hintMarks[i] || 0;
                   const label = (s.prompt || s.heading || s.type).slice(0, 36);
