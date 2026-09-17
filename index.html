@@ -340,25 +340,48 @@ const genFmt = (v) => {
   return Number.isInteger(r) && Math.abs(r) >= 1000 ? r.toLocaleString("en-US") : String(r);
 };
 const rollStep = (s) => {
-  if (!s || s.type !== "numeric" || !s.gen || !s.gen.vars) return s;
+  if (!s || !s.gen) return s;
   try {
+    // mcq: serve a random variant from the authored pool (original included)
+    if (s.type === "mcq" && Array.isArray(s.gen.variants) && s.gen.variants.length) {
+      const pool = [null, ...s.gen.variants];
+      const v = pool[Math.floor(Math.random() * pool.length)];
+      if (!v) return s;
+      if (!v.prompt || !Array.isArray(v.options) || v.options.length < 3 || typeof v.answer !== "number" || v.answer < 0 || v.answer >= v.options.length) return s;
+      return { ...s, prompt: v.prompt, options: v.options, answer: v.answer, explain: v.explain || s.explain, code: v.code !== undefined ? v.code : s.code, rolled: true };
+    }
+    if ((s.type !== "numeric" && s.type !== "output") || (!s.gen.vars && !s.gen.pick)) return s;
     const vals = {};
-    for (const [k, spec] of Object.entries(s.gen.vars)) {
+    for (const [k, spec] of Object.entries(s.gen.vars || {})) {
       const [min, max, st] = spec.map(Number);
       const count = Math.floor((max - min) / st + 1e-9) + 1;
       vals[k] = Math.round((min + st * Math.floor(Math.random() * count)) * 1e6) / 1e6;
     }
-    const ans = math.evaluate(s.gen.answer, { ...vals });
-    if (typeof ans !== "number" || !isFinite(ans)) return s;
-    const digits = s.gen.round != null ? s.gen.round : 2;
-    const answer = Math.round(ans * Math.pow(10, digits)) / Math.pow(10, digits);
-    const shown = { ...vals, A: answer };
+    const shown = { ...vals };
+    for (const [k, list] of Object.entries(s.gen.pick || {})) {
+      shown[k] = list[Math.floor(Math.random() * list.length)];
+    }
     for (const [k, expr] of Object.entries(s.gen.show || {})) {
       const v = math.evaluate(expr, { ...vals });
       shown[k] = Math.round(v * 100) / 100;
     }
     const sub = (t) => (typeof t === "string" ? t.replace(/\{(\w+)\}/g, (m, k) => (k in shown ? genFmt(shown[k]) : m)) : t);
     // templates live inside gen so the authored concrete text is the fallback
+    if (s.type === "output") {
+      return {
+        ...s,
+        prompt: sub(s.gen.prompt || s.prompt),
+        code: sub(s.gen.code || s.code),
+        expect: sub(s.gen.expect != null ? s.gen.expect : s.expect),
+        explain: sub(s.gen.explain || s.explain),
+        rolled: true,
+      };
+    }
+    const ans = math.evaluate(s.gen.answer, { ...vals });
+    if (typeof ans !== "number" || !isFinite(ans)) return s;
+    const digits = s.gen.round != null ? s.gen.round : 2;
+    const answer = Math.round(ans * Math.pow(10, digits)) / Math.pow(10, digits);
+    shown.A = answer;
     const out = { ...s, prompt: sub(s.gen.prompt || s.prompt), explain: sub(s.gen.explain || s.explain), answer, rolled: true };
     if (s.gen.tolerance != null) out.tolerance = s.gen.tolerance;
     return out;
