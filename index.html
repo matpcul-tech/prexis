@@ -339,24 +339,43 @@ const genFmt = (v) => {
   const r = Math.round(v * 100) / 100;
   return Number.isInteger(r) && Math.abs(r) >= 1000 ? r.toLocaleString("en-US") : String(r);
 };
+/* Pools remember the member they served last time (per step, in plain
+   localStorage) so a replay NEVER repeats the same question twice in a
+   row. Storage failures fall back to a plain random pick. */
+let SERVED_CACHE = null;
+const pickFromPool = (s, poolLen) => {
+  let idx = Math.floor(Math.random() * poolLen);
+  if (poolLen < 2) return idx;
+  try {
+    if (!SERVED_CACHE) SERVED_CACHE = JSON.parse(localStorage.getItem("prexis-served-v1") || "{}") || {};
+    const key = (s.type + ":" + String(s.prompt || "").slice(0, 60)).toLowerCase();
+    if (idx === SERVED_CACHE[key]) idx = (idx + 1) % poolLen;
+    SERVED_CACHE[key] = idx;
+    const keys = Object.keys(SERVED_CACHE);
+    if (keys.length > 400) keys.slice(0, 100).forEach((k) => delete SERVED_CACHE[k]);
+    localStorage.setItem("prexis-served-v1", JSON.stringify(SERVED_CACHE));
+  } catch (e) {}
+  return idx;
+};
+
 const rollStep = (s) => {
   if (!s || !s.gen) return s;
   try {
-    // code: serve a random alternate task from the authored pool (original included)
-    if (s.type === "code" && Array.isArray(s.gen.variants) && s.gen.variants.length) {
+    // variant pools (mcq, code, order): rotate through authored alternates
+    if (Array.isArray(s.gen.variants) && s.gen.variants.length && ["mcq", "code", "order"].includes(s.type)) {
       const pool = [null, ...s.gen.variants];
-      const v = pool[Math.floor(Math.random() * pool.length)];
+      const v = pool[pickFromPool(s, pool.length)];
       if (!v) return s;
-      if (!v.prompt || !v.starter || !v.solution || !Array.isArray(v.tests) || !v.tests.length) return s;
-      return { ...s, prompt: v.prompt, starter: v.starter, tests: v.tests, solution: v.solution, explain: v.explain || s.explain, rolled: true };
-    }
-    // mcq: serve a random variant from the authored pool (original included)
-    if (s.type === "mcq" && Array.isArray(s.gen.variants) && s.gen.variants.length) {
-      const pool = [null, ...s.gen.variants];
-      const v = pool[Math.floor(Math.random() * pool.length)];
-      if (!v) return s;
-      if (!v.prompt || !Array.isArray(v.options) || v.options.length < 3 || typeof v.answer !== "number" || v.answer < 0 || v.answer >= v.options.length) return s;
-      return { ...s, prompt: v.prompt, options: v.options, answer: v.answer, explain: v.explain || s.explain, code: v.code !== undefined ? v.code : s.code, rolled: true };
+      if (s.type === "mcq") {
+        if (!v.prompt || !Array.isArray(v.options) || v.options.length < 3 || typeof v.answer !== "number" || v.answer < 0 || v.answer >= v.options.length) return s;
+        return { ...s, prompt: v.prompt, options: v.options, answer: v.answer, explain: v.explain || s.explain, code: v.code !== undefined ? v.code : s.code, rolled: true };
+      }
+      if (s.type === "code") {
+        if (!v.prompt || !v.starter || !v.solution || !Array.isArray(v.tests) || !v.tests.length) return s;
+        return { ...s, prompt: v.prompt, starter: v.starter, tests: v.tests, solution: v.solution, explain: v.explain || s.explain, rolled: true };
+      }
+      if (!v.prompt || !Array.isArray(v.items) || v.items.length < 3) return s;
+      return { ...s, prompt: v.prompt, items: v.items, explain: v.explain || s.explain, codeItems: v.codeItems !== undefined ? v.codeItems : s.codeItems, rolled: true };
     }
     if ((s.type !== "numeric" && s.type !== "output") || (!s.gen.vars && !s.gen.pick)) return s;
     const vals = {};
