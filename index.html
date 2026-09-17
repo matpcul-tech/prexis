@@ -1046,7 +1046,7 @@ function Prexis() {
   const [genErrors, setGenErrors] = useState({});
   const genCancelRef = useRef(false);
   const genAbortRef = useRef(null);
-  const [genProgress, setGenProgress] = useState(null);
+  const [cancelledKey, setCancelledKey] = useState(null);
   const [expandedId, setExpandedId] = useState("core-js");
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -1559,6 +1559,7 @@ Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty build
 
   const generateOne = async (courseId, u, l) => {
     genCancelRef.current = false;
+    setCancelledKey(null);
     const course = libRef.current.courses.find((c) => c.id === courseId);
     if (!course) return false;
     const unit = course.units[u];
@@ -1578,7 +1579,7 @@ Exactly 2 units with exactly 3 lesson titles each, sequenced so difficulty build
       let gen;
       if (aiKey().trim()) {
         const ctx = adaptContext(course.subject);
-        gen = await askAI(
+        const writeLesson = () => askAI(
           `Write one interactive lesson.
 Course: "${course.title}", learner level ${course.level}. Unit: "${unit.title}". This lesson: "${lessonTitle}".
 Earlier lessons already covered: ${prior.join("; ") || "none"}. Build on them, do not repeat them.
@@ -1587,6 +1588,14 @@ Schema: {"title":"${lessonTitle}","steps":[...]}
 ${lessonSchema}`,
           { maxTokens: 2500, signal: ctrl.signal }
         );
+        try {
+          gen = await writeLesson();
+        } catch (e) {
+          // one automatic retry on a transient API failure, visible as its own phase
+          if (genCancelRef.current || e.name === "AbortError") throw e;
+          setGenState({ courseId, u, l, phase: "retrying" });
+          gen = await writeLesson();
+        }
       } else {
         gen = localCourseLesson(course.subject || course.title, lessonTitle, course.level);
       }
@@ -1661,24 +1670,22 @@ ${graded
       u.lessons.forEach((l, li) => { if (l.status !== "ready") targets.push({ u: ui, l: li }); })
     );
     setGenQueue(targets.map((t) => courseId + ":" + t.u + ":" + t.l));
-    setGenProgress({ courseId, done: 0, total: targets.length });
     for (const t of targets) {
       if (genCancelRef.current) break;
       setGenQueue((q) => q.filter((k) => k !== courseId + ":" + t.u + ":" + t.l));
       await generateOne(courseId, t.u, t.l); // a failure marks the lesson FAILED and the queue moves on
-      setGenProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
       await sleep(150);
     }
     setGenQueue([]);
     setGenState(null);
-    setGenProgress(null);
   };
 
   const cancelGeneration = () => {
     genCancelRef.current = true;
+    const st = genState;
+    if (st) setCancelledKey(st.courseId + ":" + st.u + ":" + st.l);
     try { genAbortRef.current && genAbortRef.current.abort(); } catch (e) {}
     setGenQueue([]);
-    setGenProgress(null);
   };
 
   /* ---- in-Studio editor ---- */
@@ -3115,13 +3122,15 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                                     <span style={{ fontSize: 13.5, fontWeight: 500, flex: 1 }}>{l.title}</span>
                                     {busy ? (
                                       <span className="mono" style={{ fontSize: 10, color: "var(--pencil)", display: "flex", alignItems: "center", gap: 8 }}>
-                                        {genState.phase === "writing" ? "WRITING…" : genState.phase === "verifying" ? "VERIFYING ANSWERS…" : "CHECKING…"}
+                                        {genState.phase === "writing" ? "WRITING…" : genState.phase === "retrying" ? "RETRYING…" : genState.phase === "verifying" ? "VERIFYING ANSWERS…" : "CHECKING…"}
                                         <button onClick={cancelGeneration} className="mono" style={{ background: "none", border: "none", padding: 0, color: "var(--margin)", fontSize: 10, fontWeight: 600 }}>CANCEL</button>
                                       </span>
                                     ) : queued ? (
                                       <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>QUEUED</span>
                                     ) : failed ? (
                                       <span className="mono" title={genErrors[key]} style={{ fontSize: 10, color: "var(--margin)" }}>✗ FAILED</span>
+                                    ) : cancelledKey === key && l.status !== "ready" ? (
+                                      <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>CANCELLED · NOT SAVED</span>
                                     ) : l.status === "ready" ? (
                                       <span className="mono" style={{ fontSize: 10, color: l.flagged ? "var(--margin)" : "var(--pen)" }}>{l.flagged ? l.flagged + " FLAG" : "✓ VERIFIED"}</span>
                                     ) : (
@@ -3154,13 +3163,14 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                               REGENERATE MY WEAKEST LESSON{aiKey().trim() ? "" : " (NEEDS A KEY)"}
                             </button>
                           )}
-                          {genProgress && genProgress.courseId === c.id && genProgress.total > 0 && (
+                          {(busyCourse || genQueue.some((k) => k.startsWith(c.id + ":"))) && p.total > 0 && (
                             <div style={{ marginTop: 12 }}>
                               <p className="mono" style={{ fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em", margin: 0 }}>
-                                LESSON {Math.min(genProgress.done + 1, genProgress.total)} OF {genProgress.total} · {Math.round((genProgress.done / genProgress.total) * 100)}% DONE{genState ? " · " + (genState.phase === "writing" ? "WRITING" : genState.phase === "verifying" ? "VERIFYING ANSWERS" : "CHECKING") : ""}
+                                {p.ready}/{p.total} WRITTEN · {Math.round((p.ready / p.total) * 100)}% DONE
+                                {busyCourse ? " · " + (genState.phase === "writing" ? "WRITING" : genState.phase === "retrying" ? "RETRYING" : genState.phase === "verifying" ? "VERIFYING" : "CHECKING") + " \u201c" + ((c.units[genState.u] || { lessons: [] }).lessons[genState.l] || { title: "" }).title + "\u201d" : ""}
                               </p>
                               <div className="bar" style={{ marginTop: 6 }}>
-                                <i style={{ width: Math.round((genProgress.done / genProgress.total) * 100) + "%", background: "var(--pen)" }} />
+                                <i style={{ width: Math.round((p.ready / p.total) * 100) + "%", background: "var(--pen)" }} />
                               </div>
                             </div>
                           )}
