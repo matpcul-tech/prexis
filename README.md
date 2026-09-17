@@ -34,6 +34,10 @@ Lessons teach before they test: a concept, then a worked example you reveal step
 - **AI tutor**: after a wrong answer, "Why did I miss this?" asks Grok to name the specific misconception in two sentences.
 - **Interactive exploration**: explore steps plot the live function curve as you drag, Brilliant-style.
 
+## Build while you learn
+
+The **Web pages from scratch** course is a build-along: every lesson ends with a build step that adds to **My Site**, a real page with real HTML and CSS that you keep. A live preview renders as you type, and each build step is graded by measuring your rendered page (does .card really have 12px of padding?), not by matching strings. Lesson by lesson your site gains structure, links and images, cards, spacing, a flexbox row, a media query, a grid gallery, design tokens, and an accessibility pass. The **Workshop** button on the course screen opens the same page for free editing any time, it saves as you type, belongs to your profile, and rides along in backups.
+
 ## Your style
 
 The **Style** tab (and first-run setup) reshapes the whole app:
