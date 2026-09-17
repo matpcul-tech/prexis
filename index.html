@@ -342,6 +342,14 @@ const genFmt = (v) => {
 const rollStep = (s) => {
   if (!s || !s.gen) return s;
   try {
+    // code: serve a random alternate task from the authored pool (original included)
+    if (s.type === "code" && Array.isArray(s.gen.variants) && s.gen.variants.length) {
+      const pool = [null, ...s.gen.variants];
+      const v = pool[Math.floor(Math.random() * pool.length)];
+      if (!v) return s;
+      if (!v.prompt || !v.starter || !v.solution || !Array.isArray(v.tests) || !v.tests.length) return s;
+      return { ...s, prompt: v.prompt, starter: v.starter, tests: v.tests, solution: v.solution, explain: v.explain || s.explain, rolled: true };
+    }
     // mcq: serve a random variant from the authored pool (original included)
     if (s.type === "mcq" && Array.isArray(s.gen.variants) && s.gen.variants.length) {
       const pool = [null, ...s.gen.variants];
