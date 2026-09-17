@@ -511,6 +511,17 @@ const withBuiltins = (lib) => {
       u.lessons.forEach((l) => {
         l.title = tidyStr(l.title);
         if (Array.isArray(l.steps)) tidyLesson({ title: l.title, steps: l.steps });
+        // migrate lessons written by the retired keyless shell: it glued the
+        // lesson title onto the subject ("The one idea CSS animations is
+        // easier when..."), so rebuild them with the per-title generator
+        const first = Array.isArray(l.steps) && l.steps.length ? l.steps[0] : null;
+        if (l.status === "ready" && first && first.type === "concept" &&
+            (first.heading === "Start from one rule" || first.heading === "Name the moving part")) {
+          const rebuilt = localCourseLesson(c.subject || c.title, l.title, c.level || "Beginner");
+          const differs = rebuilt.steps[0] && rebuilt.steps[0].heading !== first.heading;
+          const retired = / is easier when you can state one rule/.test(first.body || "");
+          if (differs || retired) { l.steps = rebuilt.steps; l.flagged = 0; }
+        }
       })
     );
   });
@@ -1585,6 +1596,7 @@ ${lessonSchema}`,
 
       setGenState({ courseId, u, l, phase: "checking" });
       if (!aiKey().trim()) await sleep(350);
+      if (genCancelRef.current) { setGenState(null); return false; }
       let flagged = await verifyLesson(gen);
 
       const graded = gen.steps.map((s, i) => ({ s, i })).filter((x) => x.s.type === "mcq" || x.s.type === "numeric");
@@ -3098,10 +3110,14 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                                 const failed = !!genErrors[key];
                                 const running = !!genState || genQueue.length > 0;
                                 return (
-                                  <div key={li} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px dashed var(--rule)", gap: 8 }}>
+                                  <div key={li} style={{ padding: "8px 0", borderBottom: "1px dashed var(--rule)" }}>
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                                     <span style={{ fontSize: 13.5, fontWeight: 500, flex: 1 }}>{l.title}</span>
                                     {busy ? (
-                                      <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>{genState.phase === "writing" ? "WRITING…" : genState.phase === "verifying" ? "VERIFYING ANSWERS…" : "CHECKING…"}</span>
+                                      <span className="mono" style={{ fontSize: 10, color: "var(--pencil)", display: "flex", alignItems: "center", gap: 8 }}>
+                                        {genState.phase === "writing" ? "WRITING…" : genState.phase === "verifying" ? "VERIFYING ANSWERS…" : "CHECKING…"}
+                                        <button onClick={cancelGeneration} className="mono" style={{ background: "none", border: "none", padding: 0, color: "var(--margin)", fontSize: 10, fontWeight: 600 }}>CANCEL</button>
+                                      </span>
                                     ) : queued ? (
                                       <span className="mono" style={{ fontSize: 10, color: "var(--pencil)" }}>QUEUED</span>
                                     ) : failed ? (
@@ -3116,6 +3132,12 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                                         {failed ? "RETRY" : l.status === "ready" ? "REDO" : "GEN"}
                                       </button>
                                     )}
+                                  </div>
+                                  {failed && !busy && !queued && (
+                                    <p className="mono" style={{ margin: "4px 0 0", fontSize: 10, color: "var(--margin)", lineHeight: 1.5 }}>
+                                      {String(genErrors[key]).slice(0, 90)}
+                                    </p>
+                                  )}
                                   </div>
                                 );
                               })}
@@ -3132,10 +3154,10 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                               REGENERATE MY WEAKEST LESSON{aiKey().trim() ? "" : " (NEEDS A KEY)"}
                             </button>
                           )}
-                          {genProgress && genProgress.courseId === c.id && genProgress.total > 1 && (
+                          {genProgress && genProgress.courseId === c.id && genProgress.total > 0 && (
                             <div style={{ marginTop: 12 }}>
                               <p className="mono" style={{ fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em", margin: 0 }}>
-                                LESSON {Math.min(genProgress.done + 1, genProgress.total)} OF {genProgress.total}{genState ? " · " + (genState.phase === "writing" ? "WRITING" : genState.phase === "verifying" ? "VERIFYING ANSWERS" : "CHECKING") : ""}
+                                LESSON {Math.min(genProgress.done + 1, genProgress.total)} OF {genProgress.total} · {Math.round((genProgress.done / genProgress.total) * 100)}% DONE{genState ? " · " + (genState.phase === "writing" ? "WRITING" : genState.phase === "verifying" ? "VERIFYING ANSWERS" : "CHECKING") : ""}
                               </p>
                               <div className="bar" style={{ marginTop: 6 }}>
                                 <i style={{ width: Math.round((genProgress.done / genProgress.total) * 100) + "%", background: "var(--pen)" }} />
@@ -3151,7 +3173,9 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                                 Cancel · {genQueue.filter((k) => k.startsWith(c.id + ":")).length + (busyCourse ? 1 : 0)} left
                               </button>
                             ) : (
-                              <button onClick={() => generateAll(c.id)} disabled={!!genState || genQueue.length > 0} className="primary" style={{ fontSize: 14, padding: "10px 12px", flex: 1 }}>Generate all</button>
+                              <button onClick={() => generateAll(c.id)} disabled={!!genState || genQueue.length > 0} className="primary" style={{ fontSize: 14, padding: "10px 12px", flex: 1 }}>
+                                {Object.keys(genErrors).some((k) => k.startsWith(c.id + ":")) ? "Retry failed" : "Generate all"}
+                              </button>
                             )}
                             <button
                               onClick={() => {
