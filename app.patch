@@ -1,0 +1,181 @@
+--- app.orig.jsx	2026-09-17 15:36:47.988000000 +0000
++++ app.jsx	2026-09-17 15:47:27.099000000 +0000
+@@ -26,7 +26,16 @@
+   { id: "claude-haiku-4-5", label: "HAIKU 4.5" },
+ ];
+ const DEFAULT_CLAUDE_MODEL = "claude-opus-5";
+-const TRY_TOPICS = ["Email marketing", "Photography basics", "Negotiation", "Public speaking", "Time management"];
++const TRY_TOPICS = [];
++const TRACKS = [
++  { id: "code", label: "Code" },
++  { id: "web", label: "Web" },
++  { id: "quant", label: "Numbers" },
++  { id: "thinking", label: "Thinking" },
++  { id: "writing", label: "Writing" },
++  { id: "money", label: "Money" },
++];
++const LEVEL_RANK = { Beginner: 1, Intermediate: 2, Advanced: 3 };
+ 
+ const SKINS = [
+   { id: "notebook", name: "Notebook", note: "Ruled paper, red margin", dots: ["#F7F3EA", "#1A1914", "#FFE24A"] },
+@@ -373,7 +382,7 @@
+     c.units.forEach((u, ui) =>
+       u.lessons.forEach((l, li) => {
+         const words = new Set([...tokensOf(l.title), ...(l.keywords || []).map((k) => String(k).toLowerCase()), ...tokensOf(c.subject)]);
+-        out.push({ courseId: c.id, u: ui, l: li, title: l.title, words });
++        out.push({ courseId: c.id, u: ui, l: li, title: l.title, level: c.level || "Beginner", words });
+       })
+     )
+   );
+@@ -381,14 +390,23 @@
+ })();
+ 
+ /* Score a typed topic against the built-in library. 1 = every word matched. */
+-function findLocalLesson(topic) {
++function findLocalLesson(topic, preferredLevel) {
+   const tw = tokensOf(topic);
+   if (!tw.length) return null;
++  const raw = String(topic || "").toLowerCase();
++  const want = LEVEL_RANK[preferredLevel] || 0;
+   let best = null, bestScore = 0;
+   LESSON_INDEX.forEach((e) => {
+     let hit = 0;
+     tw.forEach((w) => { if (e.words.has(w)) hit += 1; });
+-    const score = hit / tw.length;
++    let score = tw.length ? hit / tw.length : 0;
++    if (e.title.toLowerCase() === raw) score = 1;
++    else if (e.title.toLowerCase().includes(raw) || raw.includes(e.title.toLowerCase())) score = Math.max(score, 0.86);
++    if (want) {
++      const have = LEVEL_RANK[e.level] || 1;
++      if (have === want) score += 0.06;
++      else score -= Math.min(0.12, Math.abs(have - want) * 0.04);
++    }
+     if (score > bestScore) { bestScore = score; best = e; }
+   });
+   return best ? { ...best, score: bestScore } : null;
+@@ -437,10 +455,21 @@
+     subject: c.subject,
+     level: c.level,
+     title: c.title,
++    track: c.track || null,
++    prereq: c.prereq || null,
++    blurb: c.blurb || "",
++    skills: c.skills || [],
+     builtin: true,
+     units: c.units.map((u) => ({
+       title: u.title,
+-      lessons: u.lessons.map((l) => ({ title: l.title, status: "ready", steps: deep(l.steps), flagged: 0 })),
++      lessons: u.lessons.map((l) => ({
++        title: l.title,
++        status: "ready",
++        steps: deep(l.steps),
++        flagged: 0,
++        skills: l.skills || [],
++        difficulty: l.difficulty || 1,
++      })),
+     })),
+   }));
+ 
+@@ -1458,8 +1487,8 @@
+     // Curated library first: a strong match beats generating anything.
+     // Without a key any decent match serves; with a key only a full match
+     // short-circuits, so specific asks still get a custom AI lesson.
+-    const match = findLocalLesson(chosen);
+-    const threshold = aiKey().trim() ? 0.99 : 0.5;
++    const match = findLocalLesson(chosen, lvl);
++    const threshold = 0.45;
+     if (match && match.score >= threshold) {
+       if (launchFromLibrary(match.courseId, match.u, match.l, chosen)) return;
+     }
+@@ -2259,7 +2288,7 @@
+               Learn anything.<br /><span className="hi">By doing it.</span>
+             </h1>
+             <p style={{ color: "var(--pencil)", fontSize: 14.5, lineHeight: 1.55, marginTop: 12 }}>
+-              Sixty-seven built-in interactive lessons (code, web, money, spreadsheets, writing, clear thinking) from first steps to expert habits, no account and no API key needed. What you miss comes back until you own it.
++              A sequenced library: beginner through advanced tracks in code, web, numbers, thinking, writing, and money. Every coding drill runs in the browser. What you miss comes back until you own it. No account.
+             </p>
+ 
+             {learner.lastDay === dayStr(-2) && (learner.streak || 0) >= 2 && (
+@@ -2333,7 +2362,7 @@
+               </div>
+               <button onClick={() => startQuick()} className="primary" style={{ marginTop: 18 }}>Start lesson</button>
+               {err && <p style={{ marginTop: 10, fontSize: 13, color: "var(--margin)" }}>{err}</p>}
+-              <p className="kicker" style={{ marginTop: 18 }}>FROM THE LIBRARY · NO KEY NEEDED</p>
++              <p className="kicker" style={{ marginTop: 18 }}>START HERE · BEGINNER LIBRARY</p>
+               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                 {CONTENT.quickPicks.map((q) => (
+                   <button
+@@ -2367,21 +2396,25 @@
+                   </div>
+                 </div>
+               )}
+-              <p className="kicker" style={{ marginTop: 18 }}>WITH AI · ANYTHING ELSE{aiKey().trim() ? "" : " (ADD A KEY IN STUDIO)"}</p>
++              <p className="kicker" style={{ marginTop: 18 }}>ADVANCED LIBRARY · STILL NO KEY</p>
+               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+-                {TRY_TOPICS.map((t) => (
++                {(CONTENT.quickPicks || []).filter((q) => ["js-page","js-guts","algo-js","math-2","data-tables","http-web","debug-js","logic-2"].includes(q.course)).map((q) => (
+                   <button
+-                    key={t}
+-                    onClick={() => { setTopic(t); startQuick(t); }}
++                    key={q.label}
++                    onClick={() => {
++                      const pick = nextInCourse(q.course, { courseId: q.course, u: q.u, l: q.l });
++                      const ls = contentLessonAt(pick.courseId, pick.u, pick.l);
++                      if (ls) setPendingPick({ q, title: ls.title, steps: ls.steps.length });
++                    }}
+                     className="chip"
+                     style={{ fontSize: 13, padding: "6px 10px", borderStyle: "dashed" }}
+                   >
+-                    {t}
++                    {q.label}
+                   </button>
+                 ))}
+               </div>
+               <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 10 }}>
+-                Type anything above. Library subjects work offline; the AI covers the rest. For a full multi-lesson course, use Studio.
++                Type a topic above. The matcher prefers the library, including intermediate and advanced tracks. Studio AI is optional and secondary.
+               </p>
+             </div>
+ 
+@@ -2420,9 +2453,9 @@
+               )}
+               {library.courses.length > 3 && (
+                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+-                  {["all", ...Array.from(new Set(library.courses.map((c) => c.subject)))].map((f) => (
++                  {["all", ...TRACKS.map((t) => t.id), "Beginner", "Intermediate", "Advanced"].map((f) => (
+                     <button key={f} className={"ghost" + (courseFilter === f ? " on" : "")} style={{ fontSize: 10, padding: "4px 8px" }} onClick={() => setCourseFilter(f)}>
+-                      {f === "all" ? "ALL" : f.toUpperCase()}
++                      {f === "all" ? "ALL" : (TRACKS.find((t) => t.id === f)?.label || f).toUpperCase()}
+                     </button>
+                   ))}
+                 </div>
+@@ -2433,7 +2466,7 @@
+                 </p>
+               )}
+               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+-                {(courseFilter === "all" ? library.courses : library.courses.filter((c) => c.subject === courseFilter))
++                {(courseFilter === "all" ? library.courses : library.courses.filter((c) => c.track === courseFilter || c.level === courseFilter || c.subject === courseFilter))
+                   .filter((c) => {
+                     const q = librarySearch.trim().toLowerCase();
+                     if (!q) return true;
+@@ -2454,8 +2487,9 @@
+                         <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{p.done}/{p.total} COMPLETED</span>
+                       </div>
+                       <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>
+-                        {c.level.toUpperCase()}{p.ready < p.total ? " · " + p.ready + "/" + p.total + " GENERATED" : ""}
++                        {(c.track ? c.track.toUpperCase() + " · " : "") + c.level.toUpperCase()}{c.prereq ? " · AFTER " + c.prereq.toUpperCase() : ""}{p.ready < p.total ? " · " + p.ready + "/" + p.total + " GENERATED" : ""}
+                       </p>
++                      {c.blurb ? <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.45, margin: "6px 0 0", textAlign: "left" }}>{c.blurb}</p> : null}
+                       <div className="bar" style={{ marginTop: 10 }}>
+                         <i style={{ width: (p.total ? (p.done / p.total) * 100 : 0) + "%" }} />
+                       </div>
+@@ -2532,7 +2566,8 @@
+           <div>
+             <button className="mono" onClick={() => setScreen("home")} style={{ background: "none", border: "none", padding: 0, marginTop: 24, color: "var(--pencil)", fontSize: 12 }}>← BACK</button>
+             <h1 className="display" style={{ fontWeight: 700, fontSize: 28, lineHeight: 1.12, margin: "14px 0 0" }}>{activeCourse.title}</h1>
+-            <p className="kicker" style={{ marginTop: 6 }}>{activeCourse.level.toUpperCase()}</p>
++            <p className="kicker" style={{ marginTop: 6 }}>{(activeCourse.track ? activeCourse.track.toUpperCase() + " · " : "") + activeCourse.level.toUpperCase()}{activeCourse.prereq ? " · PREREQ " + activeCourse.prereq.toUpperCase() : ""}</p>
++            {activeCourse.blurb ? <p style={{ fontSize: 14, color: "var(--pencil)", lineHeight: 1.55, marginTop: 10 }}>{activeCourse.blurb}</p> : null}
+             {activeCourse.units.some((un) => un.lessons.some((l) => l.status === "ready")) && (
+               <button className="ghost" style={{ width: "100%", marginTop: 16, padding: "10px 12px" }}
+                 onClick={() => startPractice(activeCourse.subject || activeCourse.title)}>
