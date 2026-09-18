@@ -1,56 +1,37 @@
 # Prexis
 
-**Learn anything. By doing it.** An adaptive, interactive teaching tool: short Brilliant-style lessons where you answer, build, and drag, wrapped in a learning engine that adapts to how you answer and a style system that adapts to how you like to read.
+Interactive lesson player with a sequenced offline library (code, web, numbers, thinking, writing, money). No account. Studio AI is optional.
 
-## Run it
+## Run locally
 
-Open `index.html` in any modern browser (keep `content.js` beside it). No build step, no server. React, Babel and mathjs load from jsDelivr; everything else ships with the app.
+```bash
+python3 -m http.server 8765
+```
 
-## Built-in curriculum (no key, no account)
+Open http://localhost:8765/
 
-Like Brilliant, the core content is authored, not generated. `content.js` carries **67 curated lessons across 9 subjects**, all fully offline:
+Needs HTTP so Babel can compile the app inside `index.html`.
 
-- **JavaScript, by hand** (9): variables, arrays, debugging, async, objects, small programs, then closures, reduce, and immutability (with real in-browser code grading)
-- **Web pages from scratch** (9): HTML structure, links & images, CSS selectors, the box model, flexbox, responsive design, then CSS Grid, design tokens, and accessibility
-- **Websites that work** (8): visual hierarchy, type & color, copywriting, going live, maintenance, then conversion, mini design systems, and performance
-- **Found on Google** (8): how search works, keywords, on-page SEO, backlinks, measuring, then content clusters, technical SEO, and local search
-- **Numbers you can use** (8): percentages, ratios, compound growth, probability, averages, then expected value, spread, and real-vs-nominal money math (with interactive graphs)
-- **Clear thinking** (7): fallacies, correlation vs causation, Fermi estimation, base rates, then cognitive biases, incentives, and Bayesian updating
-- **Money that behaves** (6): pay-yourself-first budgeting, emergency funds, debt strategy, index investing, big purchases, insurance & tax brackets
-- **Spreadsheet thinking** (6): cells & formulas, absolute/relative references, core functions, IF/COUNTIF/SUMIF, clean tables, pivot thinking
-- **Writing that works** (6): cutting fog, paragraph craft, emails people answer, BLUF structure, writing for skimmers, revising like an editor
+## Grok Build
 
-Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions. Every question is answerable from what came above it. Typing a topic checks the library first: "website design" or "flexbox" opens the curated lesson instantly; the AI only gets called for subjects the library doesn't cover. MCQ options are shuffled at launch so answers have no home position.
+```bash
+git clone https://github.com/matpcul-tech/prexis.git
+cd prexis
+grok
+```
 
-## The intelligence
+See `AGENTS.md` for conventions. Expand `content_extra.js` (via `build_library.py`) rather than generating one-off lessons.
 
-- **Questions that never repeat**: more than 150 curated questions carry generators or variant pools, the same trick Brilliant uses. A question like "What is 15% of 80?" carries named number ranges and a formula, and it re-rolls with fresh numbers every single time it appears: in the lesson, on a replay, in practice, in review. One authored question becomes hundreds. Every generator is machine-checked against its original: the formula must reproduce the authored answer at the authored numbers.
-- **Practice mode**: every course and every mastery detail screen has a Practice button. It assembles a fresh set of eight graded questions for that subject on the spot: questions from lessons you scored low on are weighted heaviest, your open review misses lead the set, no two from the same lesson sit adjacent, and parameterized questions re-roll. No two practice runs are the same.
-- **Fresh variants on replay**: replaying a lesson you already passed with an AI key rewrites its fixed questions as verified variants (same idea, new numbers, names and scenarios), so a replay retests the skill instead of your memory of the answers. Parameterized questions re-roll on replay even without a key.
-- **Mastery model**: every graded step feeds a per-subject accuracy score (exponential moving average). Mastery bars appear on the home screen, and each subject's recommended difficulty is applied automatically the next time you study it. Tap any subject for a detail screen: your score history graphed over time (with the intermediate/advanced thresholds marked), session count, what's still in review, and a one-tap practice launcher.
-- **Smart review (spaced repetition)**: anything you get wrong becomes a review card scheduled SM-2 style: each card carries an ease factor that grows when you answer cleanly, shrinks when you need hints (counted as "hard"), and drops hard on a miss. Sessions prioritize your most-lapsed and most-overdue cards, interleave topics so no two of the same subject sit adjacent, and **re-teach before re-testing**: a card you've missed twice gets its lesson's concept and worked example replayed before the question. With an AI key, due questions are rewritten as fresh variants testing the same idea (different numbers, names, code). Each variant is mechanically verified before use, so you prove the skill, not the memorized answer. Cards graduate once their interval passes a month.
-- **Adaptive AI lessons**: add an API key in the Studio tab and the AI writes lessons live on any subject you type ("website design", "SEO basics", "Excel formulas"…). Two engines are supported: **Claude (Anthropic)**, the default, using `claude-opus-5` with `claude-sonnet-5` and `claude-haiku-4-5` as options, and **Grok (xAI)**. Your mastery score and your recent misses are fed into every prompt, so new lessons reteach weak spots from a fresh angle. Generated code steps are executed against their own tests before shipping, and quiz answers are independently re-solved for verification. Keys stay in your browser; each visitor uses their own.
-- **Hint ladder**: every graded step offers hints at an XP cost: MCQs eliminate a wrong option, code tasks reveal the solution line by line, ordering tasks place the next item, output/numeric tasks narrow the target.
-- **AI tutor**: after a wrong answer, "Why did I miss this?" asks Grok to name the specific misconception in two sentences.
-- **Interactive exploration**: explore steps plot the live function curve as you drag, Brilliant-style.
+## Layout
 
-## Build while you learn
+| File | Role |
+|---|---|
+| `index.html` | Player shell + embedded React app |
+| `app.jsx` | Source copy of the player |
+| `content.js` | Original 67 lessons |
+| `content_extra.js` | Intermediate/advanced tracks |
+| `build_library.py` | Rebuild extra curriculum |
 
-The **Web pages from scratch** course is a build-along: every lesson ends with a build step that adds to **My Site**, a real page with real HTML and CSS that you keep. A live preview renders as you type, and each build step is graded by measuring your rendered page (does .card really have 12px of padding?), not by matching strings. Lesson by lesson your site gains structure, links and images, cards, spacing, a flexbox row, a media query, a grid gallery, design tokens, and an accessibility pass. The **Workshop** button on the course screen opens the same page for free editing any time, it saves as you type, belongs to your profile, and rides along in backups.
+## Catalog
 
-## Your style
-
-The **Style** tab (and first-run setup) reshapes the whole app:
-
-- Four complete looks: **Notebook** (ruled paper), **Chalkboard** (dark board), **Terminal** (phosphor on black), **Gallery** (clean white, indigo)
-- Text size, page width (focus / wide), serif or sans headings
-- Daily XP goal with streaks and a today counter, miss a day and you can spend 50 XP to repair the streak
-- Sound and vibration feedback on answers (tiny synth, no audio files), each with its own toggle
-
-All progress, preferences, mastery and the review deck persist locally (host key-value storage when available, `localStorage` otherwise). No account, no server. **Sharing a device?** The Style tab has profiles, and each keeps its own XP, streaks, courses and review deck, and switching is instant.
-
-## Step types
-
-`concept` · `worked` (a problem solved with you, one revealed step at a time, so you learn the method before being tested on it) · `mcq` · `numeric` · `order` · `output` (predict what code prints, and it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve)
-
-All 67 curated lessons and 9 courses work fully offline with no API key.
+20 courses, 107 lessons. Tracks: code, web, quant, thinking, writing, money. Intermediate courses name a `prereq`.
