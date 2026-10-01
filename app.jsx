@@ -35,7 +35,8 @@ const TRACKS = [
   { id: "writing", label: "Writing" },
   { id: "money", label: "Money" },
 ];
-const LEVEL_RANK = { Beginner: 1, Intermediate: 2, Advanced: 3 };
+const LEVEL_RANK = { Beginner: 1, Intermediate: 2, Advanced: 3, Expert: 4 };
+const LEVELS = ["Beginner", "Intermediate", "Advanced", "Expert"];
 
 const SKINS = [
   { id: "notebook", name: "Notebook", note: "Ruled paper, red margin", dots: ["#F7F3EA", "#1A1914", "#FFE24A"] },
@@ -276,13 +277,58 @@ const DEFAULT_PROJECT = {
 };
 const buildDoc = (p) =>
   '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + (p.css || "") + "</style></head><body>" + (p.html || "") + "</body></html>";
-const runBuildChecks = (doc, win, checks, cssText) =>
-  (checks || []).map((c) => {
+const URL_RE = /^https:\/\/[^\s/]+\.[^\s]+$/i;
+/* Export the Workshop site as one self-contained index.html. Title, meta,
+   link and base tags the learner wrote at the top of the page move into
+   the head so the file is ready for any static host. */
+const exportDoc = (p) => {
+  let body = String((p && p.html) || "");
+  const head = [];
+  body = body.replace(/<title\b[^>]*>[\s\S]*?<\/title>|<meta\b[^>]*>|<link\b[^>]*>|<base\b[^>]*>/gi, (m) => { head.push(m); return ""; });
+  const hasCharset = head.some((t) => /charset/i.test(t));
+  const hasViewport = head.some((t) => /name=["']?viewport/i.test(t));
+  const hasTitle = head.some((t) => /^<title/i.test(t));
+  const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(body);
+  const title = h1 ? h1[1].replace(/<[^>]+>/g, "").trim() : "My site";
+  const lines = [];
+  if (!hasCharset) lines.push('<meta charset="utf-8">');
+  if (!hasViewport) lines.push('<meta name="viewport" content="width=device-width, initial-scale=1">');
+  if (!hasTitle) lines.push("<title>" + (title || "My site") + "</title>");
+  return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" + lines.concat(head.map((t) => t.trim())).join("\n") +
+    "\n<style>\n" + String((p && p.css) || "") + "\n</style>\n</head>\n<body>\n" + body.trim() + "\n</body>\n</html>\n";
+};
+const downloadSite = (p) => {
+  const blob = new Blob([exportDoc(p)], { type: "text/html" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "index.html";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+};
+const runBuildChecks = (doc, win, checks, cssText, extra) =>
+  (checks || []).map((c, i) => {
     try {
-      if (c.cssContains) return { label: c.label, pass: String(cssText || "").includes(c.cssContains) };
+      const x = extra || {};
+      // self check: the learner ticks it after doing the work outside Prexis
+      if (c.confirm) return { label: c.label, pass: !!(x.self && x.self[i]) };
+      // paste a link: must look like an https URL (optional ones may stay empty)
+      if (c.url) {
+        const v = String((x.links && x.links[c.url]) || "").trim();
+        return { label: c.label, pass: v ? URL_RE.test(v) : !!c.optional };
+      }
+      if (c.cssContains) {
+        const hit = String(cssText || "").includes(c.cssContains);
+        return { label: c.label, pass: c.negate ? !hit : hit };
+      }
+      if (c.htmlContains) {
+        const hit = String(x.html || "").includes(c.htmlContains);
+        return { label: c.label, pass: c.negate ? !hit : hit };
+      }
       const els = Array.from(doc.body.querySelectorAll(c.sel));
       let pass = false;
-      if (c.exists) pass = els.length > 0;
+      if (c.none) pass = els.length === 0;
+      else if (c.exists) pass = els.length > 0;
       else if (c.count) pass = els.length >= c.count;
       else if (c.attr && c.every) pass = els.length > 0 && els.every((el) => ((el.getAttribute(c.attr) || "").trim().length > 0));
       else if (c.attr) pass = els.some((el) => { const v = el.getAttribute(c.attr) || ""; return c.contains ? v.includes(c.contains) : v.trim().length > 0; });
@@ -373,6 +419,32 @@ const CONTENT = (window.PREXIS_CONTENT && Array.isArray(window.PREXIS_CONTENT.co
   ? window.PREXIS_CONTENT
   : { courses: [], quickPicks: [] };
 
+/* Order steps whose items partly commute carry groups (index lists that may
+   appear in any order). Saved copies of built-in lessons predate the field,
+   so look it up from the curriculum by prompt. */
+const ORDER_META = (() => {
+  const m = {};
+  CONTENT.courses.forEach((c) => c.units.forEach((u) => u.lessons.forEach((l) => (l.steps || []).forEach((st) => {
+    if (st && st.type === "order" && (st.groups || st.orderNote)) m[st.prompt] = { groups: st.groups || null, orderNote: st.orderNote || "" };
+  }))));
+  return m;
+})();
+const orderMetaOf = (st) => {
+  const m = ORDER_META[st.prompt] || {};
+  return { groups: st.groups || m.groups || null, orderNote: st.orderNote || m.orderNote || "" };
+};
+const orderOk = (st, seq) => {
+  if (!Array.isArray(st.items) || seq.length !== st.items.length) return false;
+  const { groups } = orderMetaOf(st);
+  const slot = st.items.map((_, i) => i);
+  (groups || []).forEach((g) => g.forEach((i) => { slot[i] = "g" + g[0]; }));
+  return seq.every((it, i) => {
+    if (it === st.items[i]) return true;
+    const j = st.items.indexOf(it);
+    return j >= 0 && slot[j] === slot[i];
+  });
+};
+
 const STOP_WORDS = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "my", "me", "how", "do", "i", "want", "learn", "learning", "about", "with", "what", "is"]);
 const tokensOf = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP_WORDS.has(w));
 
@@ -390,13 +462,14 @@ const LESSON_INDEX = (() => {
 })();
 
 /* Score a typed topic against the built-in library. 1 = every word matched. */
-function findLocalLesson(topic, preferredLevel) {
+function findLocalLesson(topic, preferredLevel, skipCourse) {
   const tw = tokensOf(topic);
   if (!tw.length) return null;
   const raw = String(topic || "").toLowerCase();
   const want = LEVEL_RANK[preferredLevel] || 0;
   let best = null, bestScore = 0;
   LESSON_INDEX.forEach((e) => {
+    if (skipCourse && skipCourse(e.courseId)) return;
     let hit = 0;
     tw.forEach((w) => { if (e.words.has(w)) hit += 1; });
     let score = tw.length ? hit / tw.length : 0;
@@ -457,6 +530,7 @@ const contentCourses = () =>
     title: c.title,
     track: c.track || null,
     prereq: c.prereq || null,
+    unlock: c.unlock || null,
     blurb: c.blurb || "",
     skills: c.skills || [],
     builtin: true,
@@ -478,7 +552,10 @@ const withBuiltins = (lib) => {
   const hidden = lib.hiddenBuiltins || [];
   const courses = (lib.courses || []).filter((c) => c.id !== "seed-js");
   contentCourses().forEach((cc) => {
-    if (!hidden.includes(cc.id) && !courses.some((c) => c.id === cc.id)) courses.push(cc);
+    const have = courses.find((c) => c.id === cc.id);
+    // saved copies of built-in courses pick up new level/track/gating metadata
+    if (have) ["level", "track", "prereq", "unlock", "blurb"].forEach((k) => { if (cc[k] != null) have[k] = cc[k]; });
+    else if (!hidden.includes(cc.id)) courses.push(cc);
   });
   // retro-tidy prose in previously generated lessons (whitespace only, never code)
   courses.forEach((c) => {
@@ -772,7 +849,7 @@ function localCourse(subject, level) {
 
 /* Whitespace/grammar tidy for generated lessons: collapses doubled
    spaces and trims prose fields. Code fields are never touched. */
-const tidyStr = (v) => (typeof v === "string" ? v.replace(/[ \t]+/g, " ").replace(/\s*\u2014\s*/g, ", ").replace(/(\d)\u2013(\d)/g, "$1-$2").replace(/\s*\u2013\s*/g, ", ").replace(/ ([,.;:!?])/g, "$1").trim() : v);
+const tidyStr = (v) => (typeof v === "string" ? v.replace(/[ \t]+/g, " ").replace(/\s*\u2014\s*/g, ", ").replace(/(\d)\u2013(\d)/g, "$1-$2").replace(/\s*\u2013\s*/g, ", ").replace(/ ([,.;:!?])(?=\s|$)/g, "$1").replace(/\b(give|Give|does|Does)\.card\b/g, "$1 .card").trim() : v);
 function tidyLesson(gen) {
   if (!gen) return gen;
   gen.title = tidyStr(gen.title);
@@ -1046,6 +1123,7 @@ function Prexis() {
   const [project, setProject] = useState(DEFAULT_PROJECT);
   const buildFrameRef = useRef(null);
   const [buildResults, setBuildResults] = useState(null);
+  const [selfChecks, setSelfChecks] = useState({});
   const genAbortRef = useRef(null);
   const [cancelledKey, setCancelledKey] = useState(null);
   const [expandedId, setExpandedId] = useState("core-js");
@@ -1369,6 +1447,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setHintN(0);
     setRetries(0);
     setBuildResults(null);
+    setSelfChecks({});
     setRevealed(false);
     setElim([]);
     setRevealN(0);
@@ -1487,7 +1566,12 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     // Curated library first: a strong match beats generating anything.
     // Without a key any decent match serves; with a key only a full match
     // short-circuits, so specific asks still get a custom AI lesson.
-    const match = findLocalLesson(chosen, lvl);
+    const match = findLocalLesson(chosen, lvl, lockedId);
+    const routed = routeWebLevel(findLocalLesson(chosen, lvl), chosen, lvl);
+    if (routed) {
+      if (!routed.locked) { if (launchFromLibrary(routed.courseId, routed.u, routed.l, chosen)) return; }
+      else if (levelTouched) { setErr(routed.locked); return; }
+    }
     const threshold = 0.45;
     if (match && match.score >= threshold) {
       if (launchFromLibrary(match.courseId, match.u, match.l, chosen)) return;
@@ -1776,6 +1860,7 @@ ${graded
 
   const startLibraryLesson = async (courseId, u, l) => {
     const course = library.courses.find((c) => c.id === courseId);
+    if (lockOf(course)) return;
     const ls = course.units[u].lessons[l];
     if (ls.status !== "ready") return;
     let steps = ls.steps;
@@ -1882,7 +1967,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
   const checkBuild = () => {
     const fr = buildFrameRef.current;
     if (!fr || !fr.contentDocument || !fr.contentWindow) return;
-    const res = runBuildChecks(fr.contentDocument, fr.contentWindow, step.checks, project.css || "");
+    const res = runBuildChecks(fr.contentDocument, fr.contentWindow, step.checks, project.css || "", { html: project.html || "", self: selfChecks, links: project.links || {} });
     setBuildResults(res);
     const ok = res.length > 0 && res.every((r) => r.pass);
     if (ok) {
@@ -1911,7 +1996,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
       const tol = typeof step.tolerance === "number" ? step.tolerance : 0.01;
       ok = !isNaN(v) && Math.abs(v - step.answer) <= tol;
     }
-    if (step.type === "order") ok = orderSeq.length === step.items.length && orderSeq.every((it, i) => it === step.items[i]);
+    if (step.type === "order") ok = orderOk(step, orderSeq);
     if (step.type === "output") ok = num.trim() === String(step.expect).trim();
     setCorrect(ok);
     setChecked(true);
@@ -2152,6 +2237,52 @@ Respond with ONLY valid JSON: {"note":"..."}`,
     return { ready, done, total };
   };
 
+  /* Level gating: a course with unlock {after, mastery, skill} opens once
+     every lesson of the course before it is complete, or once mastery in
+     that skill reaches the threshold (the same 55 / 85 lines the mastery
+     graph draws). Returns null when open, else what is missing. */
+  const lockOf = (course) => {
+    if (!course) return null;
+    const meta = CONTENT.courses.find((c) => c.id === course.id);
+    const u = (meta && meta.unlock) || course.unlock;
+    if (!u || !u.after) return null;
+    const prev = library.courses.find((c) => c.id === u.after) || contentCourses().find((c) => c.id === u.after);
+    if (!prev) return null;
+    const p = lessonProgressOf(prev);
+    if (p.total > 0 && p.done >= p.total) return null;
+    const skillName = u.skill || prev.subject;
+    const sk = skills[topicKey(skillName)];
+    const pct = sk && sk.n >= 2 ? Math.round(sk.ema * 100) : 0;
+    if (u.mastery && pct >= u.mastery) return null;
+    return {
+      after: prev.title,
+      msg: "Locked. Finish all " + p.total + " lessons of " + prev.title + " (" + p.done + "/" + p.total + " done)" +
+        (u.mastery ? ", or reach " + u.mastery + "% mastery in " + skillName + " (now " + pct + "%)." : "."),
+    };
+  };
+  const lockedId = (id) => !!lockOf(library.courses.find((c) => c.id === id) || CONTENT.courses.find((c) => c.id === id));
+
+  /* Quick lessons on web topics: the level you pick decides which rung of
+     the web ladder teaches it, instead of always landing in Beginner. */
+  const routeWebLevel = (match, chosen, lvl) => {
+    if (!match || match.score < 0.34) return null;
+    const from = CONTENT.courses.find((c) => c.id === match.courseId);
+    if (!from || from.track !== "web") return null;
+    if ((from.level || "Beginner") === lvl) return null;
+    const ids = CONTENT.courses.filter((c) => c.track === "web" && (c.level || "Beginner") === lvl).map((c) => c.id);
+    if (!ids.length) return null;
+    const tw = tokensOf(chosen);
+    let best = null, bestHit = -1;
+    LESSON_INDEX.filter((e) => ids.includes(e.courseId)).forEach((e) => {
+      const hit = tw.filter((w) => e.words.has(w)).length;
+      if (hit > bestHit) { bestHit = hit; best = e; }
+    });
+    if (!best) return null;
+    const target = CONTENT.courses.find((c) => c.id === best.courseId);
+    const lock = lockOf(library.courses.find((c) => c.id === target.id) || target);
+    return { courseId: target.id, u: best.u, l: best.l, locked: lock ? target.title + " is " + lock.msg.charAt(0).toLowerCase() + lock.msg.slice(1) : null };
+  };
+
   /* Resume: next ready lesson in any library course (custom ones included). */
   const nextReadyInCourse = (course, preferred) => {
     const prog = learner.courseProgress || {};
@@ -2356,7 +2487,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 placeholder="e.g. JavaScript functions"
               />
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                {["Beginner", "Intermediate", "Advanced"].map((l) => (
+                {LEVELS.map((l) => (
                   <button key={l} onClick={() => { setLevel(l); setLevelTouched(true); }} className={"ghost" + (level === l ? " on" : "")}>{l.toUpperCase()}</button>
                 ))}
               </div>
@@ -2455,7 +2586,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               )}
               {library.courses.length > 3 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                  {["all", ...TRACKS.map((t) => t.id), "Beginner", "Intermediate", "Advanced"].map((f) => (
+                  {["all", ...TRACKS.map((t) => t.id), ...LEVELS].map((f) => (
                     <button key={f} className={"ghost" + (courseFilter === f ? " on" : "")} style={{ fontSize: 10, padding: "4px 8px" }} onClick={() => setCourseFilter(f)}>
                       {f === "all" ? "ALL" : (TRACKS.find((t) => t.id === f)?.label || f).toUpperCase()}
                     </button>
@@ -2477,6 +2608,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   })
                   .map((c) => {
                   const p = lessonProgressOf(c);
+                  const lock = lockOf(c);
                   return (
                     <button
                       key={c.id}
@@ -2485,13 +2617,14 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       style={{ padding: 14 }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontWeight: 800, fontSize: 16 }}>{c.title}</span>
-                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{p.done}/{p.total} COMPLETED</span>
+                        <span style={{ fontWeight: 800, fontSize: 16 }}>{lock ? "🔒 " : ""}{c.title}</span>
+                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{lock ? "LOCKED" : p.done + "/" + p.total + " COMPLETED"}</span>
                       </div>
                       <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>
                         {(c.track ? c.track.toUpperCase() + " · " : "") + c.level.toUpperCase()}{c.prereq ? " · AFTER " + c.prereq.toUpperCase() : ""}{p.ready < p.total ? " · " + p.ready + "/" + p.total + " GENERATED" : ""}
                       </p>
                       {c.blurb ? <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.45, margin: "6px 0 0", textAlign: "left" }}>{c.blurb}</p> : null}
+                      {lock ? <p className="mono" data-lock="1" style={{ fontSize: 11, color: "var(--margin)", lineHeight: 1.45, margin: "6px 0 0", textAlign: "left" }}>{lock.msg}</p> : null}
                       <div className="bar" style={{ marginTop: 10 }}>
                         <i style={{ width: (p.total ? (p.done / p.total) * 100 : 0) + "%" }} />
                       </div>
@@ -2560,6 +2693,10 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 8 }}>
               The page you are building through the course. Edit it freely here; the build steps inside lessons check this same page. It saves as you type and belongs to this profile.
             </p>
+            <button className="primary" style={{ marginTop: 14 }} onClick={() => downloadSite(project)}>Export my site</button>
+            <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 8 }}>
+              Downloads one index.html with your styles inlined and your title and meta tags in the head. Upload it to GitHub Pages, Netlify or Vercel; the lesson Put your site online walks through each.
+            </p>
             <ProjectEditor project={project} onChange={persistProject} frameRef={buildFrameRef} tall={true} />
           </div>
         )}
@@ -2570,7 +2707,13 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <h1 className="display" style={{ fontWeight: 700, fontSize: 28, lineHeight: 1.12, margin: "14px 0 0" }}>{activeCourse.title}</h1>
             <p className="kicker" style={{ marginTop: 6 }}>{(activeCourse.track ? activeCourse.track.toUpperCase() + " · " : "") + activeCourse.level.toUpperCase()}{activeCourse.prereq ? " · PREREQ " + activeCourse.prereq.toUpperCase() : ""}</p>
             {activeCourse.blurb ? <p style={{ fontSize: 14, color: "var(--pencil)", lineHeight: 1.55, marginTop: 10 }}>{activeCourse.blurb}</p> : null}
-            {activeCourse.units.some((un) => un.lessons.some((l) => l.status === "ready")) && (
+            {lockOf(activeCourse) && (
+              <div className="card" role="status" style={{ marginTop: 14, padding: "12px 14px", borderColor: "var(--margin)", boxShadow: "none" }}>
+                <p className="mono" style={{ margin: 0, fontSize: 12, color: "var(--margin)", letterSpacing: ".06em" }}>🔒 {activeCourse.level.toUpperCase()} IS LOCKED</p>
+                <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }}>{lockOf(activeCourse).msg}</p>
+              </div>
+            )}
+            {activeCourse.units.some((un) => un.lessons.some((l) => l.status === "ready")) && !lockOf(activeCourse) && (
               <button className="ghost" style={{ width: "100%", marginTop: 16, padding: "10px 12px" }}
                 onClick={() => startPractice(activeCourse.subject || activeCourse.title)}>
                 PRACTICE · FRESH QUESTIONS EVERY RUN
@@ -2587,7 +2730,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                   {u.lessons.map((l, li) => {
                     const score = (learner.courseProgress || {})[activeCourse.id + ":" + ui + ":" + li];
-                    const ready = l.status === "ready";
+                    const ready = l.status === "ready" && !lockOf(activeCourse);
                     const picked = coursePick && coursePick.u === ui && coursePick.l === li;
                     return (
                       <div key={li}>
@@ -2601,7 +2744,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                         >
                           <span style={{ fontSize: 15, fontWeight: 600 }}>{l.title}</span>
                           <span className="mono" style={{ fontSize: 11, color: score ? "var(--pen)" : ready ? "var(--ink)" : "var(--pencil)" }}>
-                            {score ? "✓ " + score : ready ? "START" : "TODO"}
+                            {score ? "✓ " + score : ready ? "START" : lockOf(activeCourse) ? "LOCKED" : "TODO"}
                           </span>
                         </button>
                         {picked && (
@@ -2742,6 +2885,24 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   </div>
                 )}
                 <ProjectEditor project={project} onChange={persistProject} frameRef={buildFrameRef} tall={false} />
+                {(step.checks || []).some((c) => c.confirm || c.url) && (
+                  <div style={{ marginTop: 14 }}>
+                    <p className="kicker">OUTSIDE PREXIS · CONFIRM AND LINK</p>
+                    {(step.checks || []).map((c, i) => c.confirm ? (
+                      <label key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8, fontSize: 14, lineHeight: 1.45 }}>
+                        <input type="checkbox" checked={!!selfChecks[i]} disabled={checked} onChange={(e) => setSelfChecks((m) => ({ ...m, [i]: e.target.checked }))} style={{ marginTop: 3 }} />
+                        <span>{c.label}</span>
+                      </label>
+                    ) : c.url ? (
+                      <label key={i} style={{ display: "block", marginTop: 10, fontSize: 13 }}>
+                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{c.label.toUpperCase()}</span>
+                        <input type="url" inputMode="url" placeholder="https://" value={(project.links || {})[c.url] || ""} disabled={checked}
+                          onChange={(e) => persistProject({ ...project, links: { ...(project.links || {}), [c.url]: e.target.value } })}
+                          style={{ width: "100%", marginTop: 4, background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 6, padding: "8px 10px", fontSize: 14 }} />
+                      </label>
+                    ) : null)}
+                  </div>
+                )}
                 {checked ? (
                   <div>
                     <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 6, background: "var(--paper-2)", border: "1.5px solid var(--pen)" }}>
@@ -2793,6 +2954,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             {step.type === "order" && (
               <div>
                 <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
+                {orderMetaOf(step).orderNote && <p style={{ fontSize: 13.5, color: "var(--pencil)", lineHeight: 1.5, margin: "6px 0 0" }}>{orderMetaOf(step).orderNote}</p>}
                 <p className="kicker" style={{ marginTop: 16 }}>YOUR ORDER</p>
                 <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8, minHeight: 40 }}>
                   {orderSeq.map((it, i) => (

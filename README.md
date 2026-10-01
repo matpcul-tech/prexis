@@ -19,7 +19,7 @@ Open http://localhost:8765/. No build step, no account. React, Babel and mathjs 
 - `index.html`: the shell (styles, CDN scripts, mount point)
 - `app.jsx`: the player, compiled in the browser by Babel standalone
 - `content.js`: the original curated curriculum (67 lessons, 9 courses)
-- `content_extra.js`: extra tracks and course metadata (track, prereq, blurb), merged into the curriculum at load
+- `content_extra.js`: extra tracks (including the web ladder from `extra_web.py`) and course metadata (track, prereq, unlock, blurb), merged into the curriculum at load
 - `build_library.py` + `extra_*.py`: rebuild `content_extra.js` from source
 - `app.patch`, `bootstrap.sh`, `AGENTS.md`: the agent authoring pipeline. `bootstrap.sh` regenerates `app.jsx` from git history plus `app.patch`; you only need it when changing the player through the patch.
 
@@ -36,6 +36,16 @@ The core content is authored, not generated. The library is sequenced: beginner 
 - **Money that behaves** (6): pay-yourself-first budgeting, emergency funds, debt strategy, index investing, big purchases, insurance & tax brackets
 - **Spreadsheet thinking** (6): cells & formulas, absolute/relative references, core functions, IF/COUNTIF/SUMIF, clean tables, pivot thinking
 - **Writing that works** (6): cutting fog, paragraph craft, emails people answer, BLUF structure, writing for skimmers, revising like an editor
+
+### The web ladder (build as you go)
+
+After **Web pages from scratch** (Beginner), the web track keeps going on the same Workshop site, nine lessons per level:
+
+- **Websites you run** (Intermediate, 9): put your site online, multi page navigation, forms, SEO and sharing, the cascade, motion, images, a little JavaScript, Git and GitHub
+- **Web apps with real tools** (Advanced, 9): modern CSS architecture, modules, fetching data, npm and Vite, deploy from Git, custom domain and HTTPS, performance, accessibility deep dive, linting and CI
+- **Shipping real web apps** (Expert, 9): TypeScript, a component framework, routing, your own API, databases and sign in, security, testing, running in production, working like a pro
+
+Each level unlocks when you finish the course before it, or reach the mastery line in that subject (55% for Intermediate, 85% for Advanced and Expert). The last lesson of each level ends with a capstone build. Work done outside Prexis (deploys, Git, DNS, config files) is checked with a self check and a pasted link. The Workshop's **Export my site** button downloads your page as one index.html ready for GitHub Pages, Netlify or Vercel.
 
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions. Typing a topic checks the library first, preferring lessons at your level; Studio AI is optional and secondary.
 
