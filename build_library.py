@@ -17,6 +17,12 @@ try:
 except Exception:
     pass
 
+picks = []
+# Web track ladder (Intermediate, Advanced, Expert). Imported on its own so
+# a missing optional extra_* file above can never drop these courses.
+from extra_web import add as add_web
+add_web(courses, picks)
+
 overlay = {
     "core-js": {"track": "code", "blurb": "Bindings, lists, errors, async, objects, closures, reduce, copies."},
     "web-pages": {"track": "web", "blurb": "HTML, CSS, box model, flex, grid, accessibility."},
@@ -29,7 +35,6 @@ overlay = {
     "writing": {"track": "writing", "blurb": "Fog, paragraphs, emails, revision."},
 }
 
-picks = []
 out = root / "content_extra.js"
 payload = {"courses": courses, "quickPicks": picks, "overlay": overlay}
 out.write_text(
