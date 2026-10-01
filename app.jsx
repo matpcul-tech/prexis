@@ -277,14 +277,198 @@ const DEFAULT_PROJECT = {
 };
 const buildDoc = (p) =>
   '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + (p.css || "") + "</style></head><body>" + (p.html || "") + "</body></html>";
+/* The page as the browser parses it, without rendering or running
+   anything (DOMParser documents never fetch, paint or execute). Selector
+   checks read this, so a script tag counts even though the preview
+   strips it. */
+const sourceDoc = (p) => {
+  try { return new DOMParser().parseFromString(buildDoc(p), "text/html"); } catch (e) { return null; }
+};
+/* Remote means the browser can fetch it from anywhere. Anything else
+   (hero.jpg, /src/main.js) is a file the one-page Workshop cannot hold. */
+const isRemoteRef = (u) => /^\s*(https?:|data:|blob:|\/\/)/i.test(String(u || ""));
+const isLocalRef = (u) => { const v = String(u || "").trim(); return !!v && !isRemoteRef(v) && !/^(#|mailto:|tel:|javascript:)/i.test(v); };
+const placeholderImg = (name) => {
+  const n = String(name || "image").split(/[\s,]/)[0].split("/").pop().slice(0, 40).replace(/[<>&"']/g, "");
+  return "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="#ecebe6"/>' +
+    '<text x="160" y="84" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#666">' + n + '</text>' +
+    '<text x="160" y="106" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#888">file not in the Workshop</text></svg>');
+};
+const cssLocalUrls = (css) => String(css || "")
+  .replace(/@import\s+(url\()?\s*['"]?(?!https?:|data:|\/\/)[^'");]+['"]?\s*\)?[^;]*;/gi, "")
+  .replace(/url\(\s*(['"]?)(?!data:|https?:|blob:|\/\/|#)([^'")]*)\1\s*\)/gi, 'url("data:,")');
+/* What the live preview shows. It is the learner's page with everything
+   that cannot work in a one-page, script-free sandbox taken out, so the
+   app console stays clean and nothing in the frame can reach Prexis:
+   scripts, inline handlers and javascript: URLs are removed (the sandbox
+   blocks them anyway), link/base/CSP meta tags are dropped, links stop
+   navigating the frame, and local image files show a labeled placeholder. */
+const previewDoc = (p) => {
+  const d = sourceDoc({ html: p.html, css: cssLocalUrls(p.css) });
+  if (!d) return buildDoc({ html: "", css: "" });
+  d.querySelectorAll("script, link, base, meta[http-equiv], object, embed, noscript").forEach((el) => el.remove());
+  d.querySelectorAll("*").forEach((el) => {
+    Array.from(el.attributes).forEach((a) => {
+      const n = a.name.toLowerCase();
+      if (n.startsWith("on") || /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
+    });
+    const tag = el.tagName;
+    if ((tag === "A" || tag === "AREA") && el.hasAttribute("href")) {
+      const h = el.getAttribute("href");
+      if (!/^#/.test(h)) { el.setAttribute("data-href", h); el.setAttribute("href", "#"); }
+      el.removeAttribute("target");
+    }
+    if (tag === "FORM") { el.removeAttribute("action"); el.setAttribute("method", "get"); }
+    if (tag === "IMG" && isLocalRef(el.getAttribute("src"))) el.setAttribute("src", placeholderImg(el.getAttribute("src")));
+    if ((tag === "IMG" || tag === "SOURCE") && el.hasAttribute("srcset")) {
+      const ss = el.getAttribute("srcset");
+      if (ss.split(",").some((c) => isLocalRef(c.trim().split(/\s+/)[0]))) {
+        if (tag === "SOURCE") el.setAttribute("srcset", placeholderImg(ss)); else el.removeAttribute("srcset");
+      }
+    }
+    if (tag === "IFRAME" || tag === "VIDEO" || tag === "AUDIO" || tag === "SOURCE" || tag === "TRACK") {
+      if (isLocalRef(el.getAttribute("src"))) el.removeAttribute("src");
+    }
+    if (el.hasAttribute("poster") && isLocalRef(el.getAttribute("poster"))) el.removeAttribute("poster");
+    if (el.hasAttribute("style")) el.setAttribute("style", cssLocalUrls(el.getAttribute("style")));
+  });
+  return "<!DOCTYPE html>" + d.documentElement.outerHTML;
+};
+/* Learner HTML minus comments, so a word inside <!-- --> or a JS comment
+   never passes (or fails) a code check. */
+const stripComments = (html) => String(html || "")
+  .replace(/<!--[\s\S]*?-->/g, "")
+  .replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script>)/gi, (m, a, body, b) =>
+    a + body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1") + b);
+
+/* Content-Security-Policy review. Export puts a CSP meta tag in the head,
+   where browsers enforce it, so a policy that forgets the page's own
+   inline style or scripts silently breaks the exported site. This lists
+   what the policy would block, in plain words. */
+const cspPolicyOf = (html) => {
+  const m = /<meta\b(?:[^>"']|"[^"]*"|'[^']*')*?http-equiv\s*=\s*["']?content-security-policy["']?(?:[^>"']|"[^"]*"|'[^']*')*>/i.exec(stripComments(html));
+  if (!m) return null;
+  const cm = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(m[0]);
+  const dirs = {};
+  String(cm ? (cm[1] != null ? cm[1] : cm[2]) : "").split(";").forEach((part) => {
+    const t = part.trim().split(/\s+/).filter(Boolean);
+    if (t.length) dirs[t[0].toLowerCase()] = t.slice(1).map((s) => s.toLowerCase());
+  });
+  return dirs;
+};
+const cspAllows = (list, what) => {
+  if (!list) return true; // no directive and no default-src: not restricted
+  if (list.includes("'none'") && list.length === 1) return false;
+  if (what.inline) {
+    const nonceOrHash = list.some((s) => /^'(nonce-|sha256-|sha384-|sha512-)/.test(s));
+    return list.includes("'unsafe-inline'") && !nonceOrHash;
+  }
+  if (what.self) return list.includes("'self'") || list.includes("*");
+  if (what.host) {
+    const h = what.host;
+    return list.some((s) => s === "*" || s === "https:" ||
+      s.replace(/^https?:\/\//, "").replace(/\/.*$/, "") === h ||
+      (s.replace(/^https?:\/\//, "").startsWith("*.") && h.endsWith(s.replace(/^https?:\/\//, "").slice(1))));
+  }
+  return true;
+};
+const cspIssues = (p) => {
+  const html = String((p && p.html) || "");
+  const dirs = cspPolicyOf(html);
+  if (!dirs) return [];
+  const src = (name) => dirs[name] || dirs["default-src"] || null;
+  const out = [];
+  const clean = stripComments(html);
+  const scripts = [...clean.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+  const isJs = (attrs) => { const t = /\btype\s*=\s*["']?([^"'\s>]+)/i.exec(attrs); return !t || /^(module|text\/javascript|application\/javascript)$/i.test(t[1]); };
+  const hostOf = (u) => { try { return new URL(u, "https://x.invalid/").host; } catch (e) { return ""; } };
+  if ((String(p.css || "").trim() || /\sstyle\s*=/i.test(clean)) && !cspAllows(src("style-src"), { inline: true }))
+    out.push("style-src blocks your inline styles, so the exported page loses all its CSS. Add 'unsafe-inline' to style-src.");
+  if (scripts.some((s) => isJs(s[1]) && !/\bsrc\s*=/i.test(s[1]) && s[2].trim()) && !cspAllows(src("script-src"), { inline: true }))
+    out.push("script-src blocks your inline scripts, so buttons and toggles stop working. Add 'unsafe-inline' to script-src.");
+  const scriptHosts = new Set();
+  scripts.forEach((s) => {
+    const sm = /\bsrc\s*=\s*["']?([^"'\s>]+)/i.exec(s[1]);
+    if (sm && /^https?:|^\/\//i.test(sm[1])) scriptHosts.add(hostOf(sm[1]));
+    if (sm && !isRemoteRef(sm[1]) && !cspAllows(src("script-src"), { self: true })) scriptHosts.add("'self'");
+    [...s[2].matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*)["'](https?:\/\/[^"']+)["']/g)].forEach((m) => scriptHosts.add(hostOf(m[1])));
+  });
+  scriptHosts.forEach((h) => {
+    if (h === "'self'") out.push("script-src does not include 'self', so your own script files are blocked.");
+    else if (h && !cspAllows(src("script-src"), { host: h })) out.push("script-src does not allow https://" + h + ", so scripts you import from it are blocked.");
+  });
+  const imgHosts = new Set();
+  let localImg = false, dataImg = false;
+  [...clean.matchAll(/<(?:img|source)\b[^>]*>/gi)].forEach((m) => {
+    const tag = m[0];
+    const urls = [];
+    const s1 = /\bsrc\s*=\s*["']?([^"'\s>]+)/i.exec(tag); if (s1) urls.push(s1[1]);
+    const s2 = /\bsrcset\s*=\s*["']([^"']+)["']/i.exec(tag); if (s2) s2[1].split(",").forEach((c) => urls.push(c.trim().split(/\s+/)[0]));
+    urls.forEach((u) => { if (/^data:/i.test(u)) dataImg = true; else if (/^https?:|^\/\//i.test(u)) imgHosts.add(hostOf(u)); else if (u) localImg = true; });
+  });
+  const iconData = /<link\b[^>]*rel\s*=\s*["']?[^"'>]*icon[^>]*href\s*=\s*["']?data:/i.test(clean);
+  const imgList = src("img-src");
+  const blockedImg = [...imgHosts].filter((h) => h && !cspAllows(imgList, { host: h }));
+  if (blockedImg.length) out.push("img-src does not allow " + blockedImg.map((h) => "https://" + h).join(", ") + ", so those images will not load. Add https: or the host to img-src.");
+  if ((dataImg || iconData) && imgList && !imgList.includes("data:")) out.push("img-src does not allow data:, so your inline icon or images are blocked. Add data: to img-src.");
+  if (localImg && !cspAllows(imgList, { self: true })) out.push("img-src does not include 'self', so your own image files are blocked.");
+  const fetches = [...clean.matchAll(/\bfetch\s*\(\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
+  const conn = src("connect-src");
+  fetches.forEach((u) => {
+    if (/^https?:\/\//i.test(u)) { const h = hostOf(u); if (!cspAllows(conn, { host: h })) out.push("connect-src does not allow https://" + h + ", so fetch to it is blocked."); }
+    else if (!cspAllows(conn, { self: true })) out.push("connect-src does not include 'self', so fetch(\"" + u + "\") is blocked.");
+  });
+  return [...new Set(out)];
+};
+/* Files the page asks for that a one-file export cannot include. */
+const localFilesOf = (p) => {
+  const d = sourceDoc(p);
+  if (!d) return [];
+  const out = new Set();
+  d.querySelectorAll("img[src], script[src], source[src], video[src], audio[src], iframe[src]").forEach((el) => { const v = el.getAttribute("src"); if (isLocalRef(v)) out.add(v.trim()); });
+  d.querySelectorAll("img[srcset], source[srcset]").forEach((el) => el.getAttribute("srcset").split(",").forEach((c) => { const v = c.trim().split(/\s+/)[0]; if (isLocalRef(v)) out.add(v); }));
+  d.querySelectorAll("link[href]").forEach((el) => { const rel = (el.getAttribute("rel") || "").toLowerCase(); const v = el.getAttribute("href"); if (/icon|preload|stylesheet|manifest/.test(rel) && isLocalRef(v)) out.add(v.trim()); });
+  return [...out];
+};
+
+/* Link fields. Prexis cannot visit the address, so it checks the shape:
+   an https URL, and for some fields the kind of host it should be. */
 const URL_RE = /^https:\/\/[^\s/]+\.[^\s]+$/i;
+const DEPLOY_HOSTS = /(^|\.)(netlify\.app|vercel\.app|github\.io|pages\.dev|onrender\.com|surge\.sh|web\.app|firebaseapp\.com|gitlab\.io|fly\.dev)$/i;
+const urlProblem = (v, kind) => {
+  const s = String(v || "").trim();
+  if (!s) return "Paste the address.";
+  if (!URL_RE.test(s)) return "It needs to start with https:// and be a full address.";
+  let u;
+  try { u = new URL(s); } catch (e) { return "That is not a valid address."; }
+  const host = u.hostname.toLowerCase();
+  if (/^(localhost|127\.|10\.|192\.168\.)/.test(host) || /(^|\.)(example\.(com|org|net)|test|invalid|local)$/.test(host)) return "Use your real public address, not a local or example one.";
+  if (!/\.[a-z]{2,}$/i.test(host)) return "The address needs a real domain ending, like .com or .app.";
+  const segs = u.pathname.split("/").filter(Boolean);
+  if (kind === "repo") {
+    if (host !== "github.com" || segs.length < 2) return "Use your repository address, like https://github.com/you/my-site.";
+  } else if (kind === "ci") {
+    const run = segs[2] === "actions" && segs[3] === "runs" && /^\d+$/.test(segs[4] || "");
+    const checks = (segs[2] === "pull" || segs[2] === "commit") && segs[4] === "checks";
+    if (host !== "github.com" || !(run || checks))
+      return "Use the link to a GitHub Actions run, like https://github.com/you/my-site/actions/runs/123456.";
+  } else if (kind === "site") {
+    if (host === "github.com" || host === "www.github.com") return "That is your code on GitHub. Paste the address where the site itself is live.";
+    if (/(^|\.)app\.netlify\.com$|(^|\.)vercel\.com$/.test(host)) return "That is the host dashboard. Paste the public address of your site.";
+  } else if (kind === "domain") {
+    if (DEPLOY_HOSTS.test(host) || host === "github.com") return "That is the free host address. Paste your own custom domain, like https://casaverde.com.";
+  }
+  return null;
+};
 /* Export the Workshop site as one self-contained index.html. Title, meta,
    link and base tags the learner wrote at the top of the page move into
    the head so the file is ready for any static host. */
 const exportDoc = (p) => {
   let body = String((p && p.html) || "");
   const head = [];
-  body = body.replace(/<title\b[^>]*>[\s\S]*?<\/title>|<meta\b[^>]*>|<link\b[^>]*>|<base\b[^>]*>/gi, (m) => { head.push(m); return ""; });
+  // attribute values may contain ">" (an inline SVG icon does), so match quoted values whole
+  body = body.replace(/<title\b[^>]*>[\s\S]*?<\/title>|<(?:meta|link|base)\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, (m) => { head.push(m); return ""; });
   const hasCharset = head.some((t) => /charset/i.test(t));
   const hasViewport = head.some((t) => /name=["']?viewport/i.test(t));
   const hasTitle = head.some((t) => /^<title/i.test(t));
@@ -306,32 +490,61 @@ const downloadSite = (p) => {
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 };
+/* Is an element hidden from people (but still in the page)? */
+const visuallyHidden = (el, win) => {
+  if (!el || !win) return false;
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    if (n.hidden) return true;
+    const cs = win.getComputedStyle(n);
+    if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) === 0) return true;
+  }
+  const r = el.getBoundingClientRect();
+  const cs = win.getComputedStyle(el);
+  if (r.width <= 1 && r.height <= 1) return true;
+  if (r.right <= 0 || r.bottom <= 0) return true;
+  if (/rect\(0/.test(cs.clip || "") || /inset\(50%|inset\(100%/.test(cs.clipPath || "")) return true;
+  return false;
+};
+/* doc/win: the rendered preview (for computed styles and visibility).
+   extra.src: the parsed source page (for selectors), so tags the preview
+   strips, like script and link, still count. */
 const runBuildChecks = (doc, win, checks, cssText, extra) =>
   (checks || []).map((c, i) => {
     try {
       const x = extra || {};
       // self check: the learner ticks it after doing the work outside Prexis
       if (c.confirm) return { label: c.label, pass: !!(x.self && x.self[i]) };
-      // paste a link: must look like an https URL (optional ones may stay empty)
+      // paste a link: an https URL of the right kind (optional ones may stay empty)
       if (c.url) {
         const v = String((x.links && x.links[c.url]) || "").trim();
-        return { label: c.label, pass: v ? URL_RE.test(v) : !!c.optional };
+        return { label: c.label, pass: v ? !urlProblem(v, c.kind) : !!c.optional };
       }
       if (c.cssContains) {
         const hit = String(cssText || "").includes(c.cssContains);
         return { label: c.label, pass: c.negate ? !hit : hit };
       }
       if (c.htmlContains) {
-        const hit = String(x.html || "").includes(c.htmlContains);
+        const hit = (c.raw ? String(x.html || "") : stripComments(x.html)).includes(c.htmlContains);
         return { label: c.label, pass: c.negate ? !hit : hit };
       }
-      const els = Array.from(doc.body.querySelectorAll(c.sel));
+      if (c.htmlMatch) {
+        const hit = new RegExp(c.htmlMatch, c.flags || "").test(stripComments(x.html));
+        return { label: c.label, pass: c.negate ? !hit : hit };
+      }
+      if (c.cspOk) {
+        const has = !!cspPolicyOf(x.html);
+        return { label: c.label, pass: has && cspIssues({ html: x.html, css: cssText }).length === 0 };
+      }
+      const rendered = c.style || c.invisible;
+      const root = rendered || !x.src ? doc : x.src;
+      const els = Array.from(root.body.querySelectorAll(c.sel));
       let pass = false;
-      if (c.none) pass = els.length === 0;
+      if (c.invisible) pass = els.length > 0 && els.every((el) => visuallyHidden(el, win));
+      else if (c.none) pass = els.length === 0;
       else if (c.exists) pass = els.length > 0;
       else if (c.count) pass = els.length >= c.count;
-      else if (c.attr && c.every) pass = els.length > 0 && els.every((el) => ((el.getAttribute(c.attr) || "").trim().length > 0));
-      else if (c.attr) pass = els.some((el) => { const v = el.getAttribute(c.attr) || ""; return c.contains ? v.includes(c.contains) : v.trim().length > 0; });
+      else if (c.attr && c.every) pass = els.length > 0 && els.every((el) => { const v = (el.getAttribute(c.attr) || "").trim(); return c.match ? new RegExp(c.match, "i").test(v) : v.length > 0; });
+      else if (c.attr) pass = els.some((el) => { const v = el.getAttribute(c.attr) || ""; if (c.match) return new RegExp(c.match, "i").test(v.trim()); return c.contains ? v.includes(c.contains) : v.trim().length > 0; });
       else if (c.style) pass = els.some((el) => {
         const v = win.getComputedStyle(el)[c.style];
         if (c.equals) return v === c.equals;
@@ -533,6 +746,7 @@ const contentCourses = () =>
     unlock: c.unlock || null,
     blurb: c.blurb || "",
     skills: c.skills || [],
+    rev: c.rev || null,
     builtin: true,
     units: c.units.map((u) => ({
       title: u.title,
@@ -556,6 +770,18 @@ const withBuiltins = (lib) => {
     // saved copies of built-in courses pick up new level/track/gating metadata
     if (have) ["level", "track", "prereq", "unlock", "blurb"].forEach((k) => { if (cc[k] != null) have[k] = cc[k]; });
     else if (!hidden.includes(cc.id)) courses.push(cc);
+    // a revised built-in course refreshes the steps of its authored lessons
+    // (matched by title, so moved lessons still match). Progress is keyed by
+    // position and untouched; lessons the learner added keep their steps.
+    if (have && cc.rev && have.rev !== cc.rev) {
+      const byTitle = {};
+      cc.units.forEach((u) => u.lessons.forEach((l) => { byTitle[l.title] = l; }));
+      have.units.forEach((u) => u.lessons.forEach((l) => {
+        const src = byTitle[l.title];
+        if (src) { l.steps = deep(src.steps); l.status = "ready"; l.flagged = 0; }
+      }));
+      have.rev = cc.rev;
+    }
   });
   // retro-tidy prose in previously generated lessons (whitespace only, never code)
   courses.forEach((c) => {
@@ -1026,23 +1252,83 @@ function SkillHistory({ hist }) {
   );
 }
 
-function ProjectEditor({ project, onChange, frameRef, tall }) {
+function ProjectEditor({ project, onChange, frameRef, tall, aside }) {
+  const [full, setFull] = useState(false);
+  const [phone, setPhone] = useState(false);
+  const doc = useMemo(() => previewDoc(project), [project.html, project.css]);
+  useEffect(() => {
+    if (!full) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => { if (e.key === "Escape") setFull(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+  }, [full]);
   const ta = {
-    marginTop: 6, width: "100%", minHeight: tall ? 160 : 110, background: "var(--paper-2)",
-    border: "1.5px solid var(--box)", borderRadius: 6, fontSize: 13, lineHeight: 1.55,
-    padding: "10px 12px", resize: "vertical",
+    marginTop: 6, width: "100%", minHeight: full ? 0 : tall ? 320 : 240, height: full ? "100%" : undefined,
+    background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 6, fontSize: 13, lineHeight: 1.55,
+    padding: "10px 12px", resize: full ? "none" : "vertical", display: "block",
   };
+  const bar = (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: full ? 0 : 16, alignItems: "center" }}>
+      <button type="button" className={"ghost" + (full ? " on" : "")} aria-pressed={full} onClick={() => setFull((f) => !f)}>
+        {full ? "CLOSE FULL SCREEN" : "FULL SCREEN EDITOR"}
+      </button>
+      <button type="button" className={"ghost" + (phone ? " on" : "")} aria-pressed={phone} onClick={() => setPhone((v) => !v)}>
+        PHONE WIDTH PREVIEW
+      </button>
+    </div>
+  );
+  const frame = (
+    <iframe ref={frameRef} title="Your site" sandbox="allow-same-origin" srcDoc={doc}
+      style={{ width: phone ? 375 : "100%", maxWidth: "100%", height: "100%", display: "block", margin: phone ? "0 auto" : 0, background: "#ffffff", border: "none" }} />
+  );
+  const previewBox = (
+    <div className="preview-box" style={{ marginTop: 6, height: full ? "100%" : tall ? 560 : 440, resize: full ? "none" : "vertical", overflow: "hidden", minHeight: 160,
+      background: phone ? "var(--paper-2)" : "#ffffff", border: "1.5px solid var(--box)", borderRadius: 6 }}>
+      {frame}
+    </div>
+  );
+  if (full) {
+    return (
+      <div className="editor-full" role="dialog" aria-modal="true" aria-label="Full screen editor">
+        <div className="editor-full-top">
+          {bar}
+          {aside ? <div style={{ marginTop: 8 }}>{aside}</div> : null}
+        </div>
+        <div className="editor-grid">
+          <div className="editor-pane">
+            <p className="kicker" style={{ margin: 0 }}>PAGE (HTML)</p>
+            <textarea value={project.html} onChange={(e) => onChange({ ...project, html: e.target.value })} className="mono"
+              aria-label="Page HTML" autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
+          </div>
+          <div className="editor-pane">
+            <p className="kicker" style={{ margin: 0 }}>STYLES (CSS)</p>
+            <textarea value={project.css} onChange={(e) => onChange({ ...project, css: e.target.value })} className="mono"
+              aria-label="Styles CSS" autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
+          </div>
+          <div className="editor-pane editor-preview">
+            <p className="kicker" style={{ margin: 0 }}>LIVE PREVIEW</p>
+            {previewBox}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div>
-      <p className="kicker" style={{ marginTop: 16 }}>PAGE (HTML)</p>
+      {bar}
+      <p className="kicker" style={{ marginTop: 12 }}>PAGE (HTML)</p>
       <textarea value={project.html} onChange={(e) => onChange({ ...project, html: e.target.value })} className="mono"
-        autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
+        aria-label="Page HTML" autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
       <p className="kicker" style={{ marginTop: 12 }}>STYLES (CSS)</p>
       <textarea value={project.css} onChange={(e) => onChange({ ...project, css: e.target.value })} className="mono"
-        autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
-      <p className="kicker" style={{ marginTop: 12 }}>LIVE PREVIEW</p>
-      <iframe ref={frameRef} title="Your site" sandbox="allow-same-origin" srcDoc={buildDoc(project)}
-        style={{ marginTop: 6, width: "100%", height: tall ? 320 : 220, background: "#ffffff", border: "1.5px solid var(--box)", borderRadius: 6 }} />
+        aria-label="Styles CSS" autoCapitalize="off" autoCorrect="off" spellCheck={false} style={ta} />
+      <p className="kicker" style={{ marginTop: 12 }}>LIVE PREVIEW · DRAG THE CORNER TO RESIZE, OR USE FULL SCREEN</p>
+      {previewBox}
+      <p className="mono" style={{ fontSize: 10.5, color: "var(--pencil)", marginTop: 6, lineHeight: 1.5 }}>
+        THE PREVIEW NEVER RUNS SCRIPTS AND SHOWS A PLACEHOLDER FOR IMAGE FILES THE WORKSHOP CANNOT HOLD. EXPORT TO SEE EVERYTHING RUN.
+      </p>
     </div>
   );
 }
@@ -1967,7 +2253,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
   const checkBuild = () => {
     const fr = buildFrameRef.current;
     if (!fr || !fr.contentDocument || !fr.contentWindow) return;
-    const res = runBuildChecks(fr.contentDocument, fr.contentWindow, step.checks, project.css || "", { html: project.html || "", self: selfChecks, links: project.links || {} });
+    const res = runBuildChecks(fr.contentDocument, fr.contentWindow, step.checks, project.css || "", { html: project.html || "", src: sourceDoc(project), self: selfChecks, links: project.links || {} });
     setBuildResults(res);
     const ok = res.length > 0 && res.every((r) => r.pass);
     if (ok) {
@@ -2697,6 +2983,28 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 8 }}>
               Downloads one index.html with your styles inlined and your title and meta tags in the head. Upload it to GitHub Pages, Netlify or Vercel; the lesson Put your site online walks through each.
             </p>
+            {(() => {
+              const csp = cspIssues(project);
+              const files = localFilesOf(project);
+              return (
+                <div>
+                  {csp.length > 0 && (
+                    <div className="card" role="alert" style={{ marginTop: 12, padding: "12px 14px", borderColor: "var(--margin)", boxShadow: "none" }}>
+                      <p className="mono" style={{ margin: 0, fontSize: 12, color: "var(--margin)", letterSpacing: ".06em" }}>YOUR CONTENT-SECURITY-POLICY WILL BREAK THE EXPORTED SITE</p>
+                      <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>Export moves your CSP meta tag into the head, where browsers enforce it. As written it blocks parts of your own page:</p>
+                      {csp.map((t, i) => <p key={i} style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>• {t}</p>)}
+                      <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5 }}>The lesson Security for web developers shows a policy that keeps your page working.</p>
+                    </div>
+                  )}
+                  {files.length > 0 && (
+                    <div className="card" role="status" style={{ marginTop: 12, padding: "12px 14px", boxShadow: "none" }}>
+                      <p className="mono" style={{ margin: 0, fontSize: 12, color: "var(--pencil)", letterSpacing: ".06em" }}>FILES THIS EXPORT DOES NOT INCLUDE</p>
+                      <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>Your page asks for {files.join(", ")}. Put {files.length === 1 ? "that file" : "those files"} next to index.html when you upload, or the browser reports {files.length === 1 ? "it" : "them"} missing.</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <ProjectEditor project={project} onChange={persistProject} frameRef={buildFrameRef} tall={true} />
           </div>
         )}
@@ -2868,39 +3176,75 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <div>
                 <p className="kicker" style={{ marginTop: 4 }}>BUILD · YOUR SITE</p>
                 <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
-                <div style={{ marginTop: 12 }}>
-                  {(step.checks || []).map((c, i) => {
-                    const r = buildResults && buildResults[i];
-                    return (
-                      <p key={i} className="mono" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5, color: r ? (r.pass ? "var(--pen)" : "var(--margin)") : "var(--pencil)" }}>
-                        {r ? (r.pass ? "✓ " : "✗ ") : "○ "}{c.label}
-                      </p>
-                    );
-                  })}
-                </div>
-                {hintN > 0 && step.example && (
-                  <div className="hintbox" style={{ marginTop: 12 }}>
-                    <p className="kicker" style={{ margin: "0 0 6px" }}>EXAMPLE</p>
-                    <CodeBlock code={step.example} />
-                  </div>
-                )}
-                <ProjectEditor project={project} onChange={persistProject} frameRef={buildFrameRef} tall={false} />
+                {(() => {
+                  const rows = (
+                    <div style={{ marginTop: 12 }}>
+                      {(step.checks || []).map((c, i) => {
+                        const r = buildResults && buildResults[i];
+                        const tag = c.confirm ? "SELF CHECK · " : c.url ? "LINK · " : "";
+                        const issues = r && !r.pass && c.cspOk ? cspIssues(project) : [];
+                        return (
+                          <div key={i}>
+                            <p className="mono" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5, color: r ? (r.pass ? "var(--pen)" : "var(--margin)") : "var(--pencil)" }}>
+                              {r ? (r.pass ? "✓ " : "✗ ") : "○ "}{tag}{c.label}
+                            </p>
+                            {r && !r.pass && c.hint ? (
+                              <p style={{ fontSize: 12.5, margin: "2px 0 0 18px", lineHeight: 1.45, color: "var(--pencil)" }}>{c.hint}</p>
+                            ) : null}
+                            {issues.map((t, k) => (
+                              <p key={k} style={{ fontSize: 12.5, margin: "2px 0 0 18px", lineHeight: 1.45, color: "var(--margin)" }}>{t}</p>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                  const checkBtn = !checked ? (
+                    <button onClick={checkBuild} className="primary" style={{ marginTop: 10 }}>Check my site</button>
+                  ) : (
+                    <p className="mono" style={{ fontSize: 12, color: "var(--pen)", marginTop: 8 }}>✓ BUILT AND VERIFIED. CLOSE FULL SCREEN TO CONTINUE.</p>
+                  );
+                  return (
+                    <div>
+                      {rows}
+                      {hintN > 0 && step.example && (
+                        <div className="hintbox" style={{ marginTop: 12 }}>
+                          <p className="kicker" style={{ margin: "0 0 6px" }}>EXAMPLE</p>
+                          <CodeBlock code={step.example} />
+                        </div>
+                      )}
+                      <ProjectEditor project={project} onChange={persistProject} frameRef={buildFrameRef} tall={false}
+                        aside={<div style={{ maxHeight: "28vh", overflow: "auto" }}><p className="mono" style={{ fontSize: 12, margin: 0, lineHeight: 1.45 }}>{step.prompt}</p>{rows}{checkBtn}</div>} />
+                    </div>
+                  );
+                })()}
                 {(step.checks || []).some((c) => c.confirm || c.url) && (
                   <div style={{ marginTop: 14 }}>
-                    <p className="kicker">OUTSIDE PREXIS · CONFIRM AND LINK</p>
-                    {(step.checks || []).map((c, i) => c.confirm ? (
-                      <label key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8, fontSize: 14, lineHeight: 1.45 }}>
-                        <input type="checkbox" checked={!!selfChecks[i]} disabled={checked} onChange={(e) => setSelfChecks((m) => ({ ...m, [i]: e.target.checked }))} style={{ marginTop: 3 }} />
-                        <span>{c.label}</span>
-                      </label>
-                    ) : c.url ? (
-                      <label key={i} style={{ display: "block", marginTop: 10, fontSize: 13 }}>
-                        <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{c.label.toUpperCase()}</span>
-                        <input type="url" inputMode="url" placeholder="https://" value={(project.links || {})[c.url] || ""} disabled={checked}
-                          onChange={(e) => persistProject({ ...project, links: { ...(project.links || {}), [c.url]: e.target.value } })}
-                          style={{ width: "100%", marginTop: 4, background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 6, padding: "8px 10px", fontSize: 14 }} />
-                      </label>
-                    ) : null)}
+                    <p className="kicker">OUTSIDE PREXIS · SELF CHECKS AND LINKS</p>
+                    <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, margin: "4px 0 0" }}>
+                      Prexis cannot see your accounts or files outside this page. Tick a self check only after you have done it; links are checked for the right format, not visited, so open them yourself to be sure they work.
+                    </p>
+                    {(step.checks || []).map((c, i) => {
+                      if (c.confirm) return (
+                        <label key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8, fontSize: 14, lineHeight: 1.45 }}>
+                          <input type="checkbox" checked={!!selfChecks[i]} disabled={checked} onChange={(e) => setSelfChecks((m) => ({ ...m, [i]: e.target.checked }))} style={{ marginTop: 3 }} />
+                          <span><span className="mono" style={{ fontSize: 10.5, color: "var(--pencil)", letterSpacing: ".06em" }}>SELF CHECK · </span>{c.label}</span>
+                        </label>
+                      );
+                      if (!c.url) return null;
+                      const v = (project.links || {})[c.url] || "";
+                      const prob = v.trim() ? urlProblem(v, c.kind) : null;
+                      const ph = { repo: "https://github.com/you/my-site", ci: "https://github.com/you/my-site/actions/runs/123", domain: "https://casaverde.com", site: "https://my-site.netlify.app" }[c.kind] || "https://";
+                      return (
+                        <label key={i} style={{ display: "block", marginTop: 10, fontSize: 13 }}>
+                          <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>LINK · {c.label.toUpperCase()}</span>
+                          <input type="url" inputMode="url" placeholder={ph} value={v} disabled={checked} aria-invalid={!!prob}
+                            onChange={(e) => persistProject({ ...project, links: { ...(project.links || {}), [c.url]: e.target.value } })}
+                            style={{ width: "100%", marginTop: 4, background: "var(--paper-2)", border: "1.5px solid " + (prob ? "var(--margin)" : "var(--box)"), borderRadius: 6, padding: "8px 10px", fontSize: 14 }} />
+                          {prob ? <span style={{ display: "block", fontSize: 12.5, color: "var(--margin)", marginTop: 4, lineHeight: 1.45 }}>{prob}</span> : null}
+                        </label>
+                      );
+                    })}
                   </div>
                 )}
                 {checked ? (
