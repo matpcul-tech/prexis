@@ -45,7 +45,7 @@ After **Web pages from scratch** (Beginner), the web track keeps going on the sa
 - **Web apps with real tools** (Advanced, 9): modern CSS architecture, modules, fetching data, npm and Vite, deploy from Git, custom domain and HTTPS, performance, accessibility deep dive, linting and CI
 - **Shipping real web apps** (Expert, 9): TypeScript, a component framework, routing, your own API, databases and sign in, security, testing, running in production, working like a pro
 
-Each level unlocks when you finish the course before it, or reach the mastery line in that subject (55% for Intermediate, 85% for Advanced and Expert). The last lesson of each level ends with a capstone build. Work done outside Prexis (deploys, Git, DNS, config files) is checked with a self check and a pasted link. The Workshop's **Export my site** button downloads your page as one index.html ready for GitHub Pages, Netlify or Vercel.
+Each level unlocks when you finish the course before it, or reach the mastery line in that subject (55% for Intermediate, 85% for Advanced and Expert). The last lesson of each level ends with a capstone build. Work done outside Prexis (deploys, Git, DNS, config files) is checked with a self check and a pasted link. Self checks are marked as such, and pasted links are checked for the right kind of address (a live site, a GitHub repo, a CI run, a custom domain), not visited. Lessons that need an outside account, an install or money open with a short "what you need" card. The Workshop's **Export my site** button downloads your page as one index.html ready for GitHub Pages, Netlify or Vercel, and warns before you export if your Content-Security-Policy would block your own styles, scripts or images, or if the page asks for files the export cannot include.
 
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions. Typing a topic checks the library first, preferring lessons at your level; Studio AI is optional and secondary.
 
@@ -62,7 +62,7 @@ Lessons teach before they test: a concept, then a worked example you reveal step
 
 ## Build while you learn
 
-The **Web pages from scratch** course is a build-along: every lesson ends with a build step that adds to **My Site**, a real page with real HTML and CSS that you keep. A live preview renders as you type, and each build step is graded by measuring your rendered page, not by matching strings. The **Workshop** button on the course screen opens the same page for free editing any time.
+The **Web pages from scratch** course is a build-along: every lesson ends with a build step that adds to **My Site**, a real page with real HTML and CSS that you keep. A live preview renders as you type (resizable, with a full screen editor and a phone width toggle), and each build step is graded by measuring your rendered page, not by matching strings. The preview never runs scripts: they are removed before rendering, and image files the Workshop cannot hold show a labeled placeholder. The **Workshop** button on the course screen opens the same page for free editing any time.
 
 ## Your style
 

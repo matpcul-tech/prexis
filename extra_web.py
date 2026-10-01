@@ -2,9 +2,15 @@
 
 Every Build step grows the same Workshop site the learner started in
 "Web pages from scratch". The Workshop holds one HTML page and one
-stylesheet, and its preview never runs scripts, so:
-  - DOM and CSS checks measure the rendered page (sel / cssContains),
-  - htmlContains reads the page source (scripts included),
+stylesheet, and its preview never runs scripts (they are stripped before
+rendering), so:
+  - selector checks read the parsed page source, style and invisible
+    checks measure the rendered preview, cssContains reads the stylesheet,
+  - htmlContains and htmlMatch (rx) read the page source with HTML and JS
+    comments removed (raw=True keeps comments, for // @ts-check style
+    annotations), so a word in a comment never passes a check,
+  - cspOk passes when a CSP exists and still allows the page's own inline
+    style, scripts and image or script hosts (the Workshop warns the same),
   - JavaScript logic is graded by code steps that really run,
   - work done outside Prexis (deploys, Git, DNS, config files) uses
     confirm checks (a self check) and url checks (paste a link).
@@ -53,19 +59,47 @@ def K(prompt, starter, solution, tests, explain):
 
 # ---------- check helpers ----------
 
-def has(sel, label):
-    return {"sel": sel, "exists": True, "label": label}
+def _hint(c, hint):
+    if hint:
+        c["hint"] = hint
+    return c
 
 
-def count(sel, n, label):
-    return {"sel": sel, "count": n, "label": label}
+def has(sel, label, hint=None):
+    return _hint({"sel": sel, "exists": True, "label": label}, hint)
 
 
-def attr(sel, a, label, contains=None):
+def count(sel, n, label, hint=None):
+    return _hint({"sel": sel, "count": n, "label": label}, hint)
+
+
+def attr(sel, a, label, contains=None, match=None, every=False, hint=None):
     c = {"sel": sel, "attr": a, "label": label}
     if contains:
         c["contains"] = contains
-    return c
+    if match:
+        c["match"] = match
+    if every:
+        c["every"] = True
+    return _hint(c, hint)
+
+
+def invisible(sel, label, hint=None):
+    """Passes when every match exists in the page but people cannot see it."""
+    return _hint({"sel": sel, "invisible": True, "label": label}, hint)
+
+
+def rx(pattern, label, hint=None, negate=False):
+    """Regex over the page source with HTML and JS comments removed."""
+    c = {"htmlMatch": pattern, "label": label}
+    if negate:
+        c["negate"] = True
+    return _hint(c, hint)
+
+
+def csp_ok(label, hint=None):
+    """Passes when a CSP exists and still allows the page's own content."""
+    return _hint({"cspOk": True, "label": label}, hint)
 
 
 def style(sel, prop, label, **kw):
@@ -74,32 +108,40 @@ def style(sel, prop, label, **kw):
     return c
 
 
-def none(sel, label):
-    return {"sel": sel, "none": True, "label": label}
+def none(sel, label, hint=None):
+    return _hint({"sel": sel, "none": True, "label": label}, hint)
 
 
-def css(text, label, negate=False):
+def css(text, label, negate=False, hint=None):
     c = {"cssContains": text, "label": label}
     if negate:
         c["negate"] = True
-    return c
+    return _hint(c, hint)
 
 
-def html(text, label, negate=False):
+def html(text, label, negate=False, hint=None, raw=False):
+    """Text in the page source. Comments are ignored unless raw=True (for
+    checks that look for comment annotations such as // @ts-check)."""
     c = {"htmlContains": text, "label": label}
     if negate:
         c["negate"] = True
-    return c
+    if raw:
+        c["raw"] = True
+    return _hint(c, hint)
 
 
 def confirm(label):
     return {"confirm": True, "label": label}
 
 
-def url(key, label, optional=False):
+def url(key, label, optional=False, kind=None):
+    """kind: site (a live site, not github.com), repo (github.com/owner/repo),
+    ci (a GitHub Actions run), domain (a custom domain, not a free host)."""
     c = {"url": key, "label": label}
     if optional:
         c["optional"] = True
+    if kind:
+        c["kind"] = kind
     return c
 
 
@@ -111,13 +153,26 @@ def L(title, keywords, steps):
     return {"title": title, "keywords": keywords, "steps": steps}
 
 
-FAVICON = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%8C%BF</text></svg>'
+def NEED(body):
+    """A 'before you start' note for lessons that need outside accounts,
+    installs or money."""
+    return C("Before you start: what you need", body)
+
+
+ICON_RX = "^(data:image/|https://)"
+HTTPS_IMG_RX = "^(https://|data:image/)"
+SRCSET_RX = r"^\s*(https://|data:image/)\S+(\s+\d+(\.\d+)?[wx])?\s*(,\s*(https://|data:image/)\S+(\s+\d+(\.\d+)?[wx])?\s*)*$"
+
+
+# Fully percent-encoded so no raw < or > sits inside the href attribute.
+FAVICON = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8C%BF%3C/text%3E%3C/svg%3E'
 
 # =====================================================================
 # Level 2: Intermediate
 # =====================================================================
 
 I1 = L("Put your site online", ["ship", "deploy", "hosting", "netlify", "github", "pages", "vercel", "export", "live", "publish", "favicon"], [
+    NEED("A free account on Netlify, GitHub or Vercel, and an email address to sign up. All three have free plans and none needs a card for a static site. Cost: free. This lesson asks for your live address at the end, so it is the first one you finish outside Prexis."),
     C("A static site is just files",
       "Hosting is a computer that is always on and hands your files to anyone who asks. Your Workshop site is HTML and CSS with no server code, so any static host can serve it. GitHub Pages, Netlify and Vercel all have free plans with HTTPS built in."),
     M("Which files does a static host need to serve your Workshop site?",
@@ -135,13 +190,14 @@ I1 = L("Put your site online", ["ship", "deploy", "hosting", "netlify", "github"
        "Open Settings, then Pages. Under Build and deployment pick Deploy from a branch, branch main, folder / (root). Save.",
        "Wait a minute, then open https://yourname.github.io. On Vercel the same file works: Add New, Project, import the repo, no build command, Deploy."],
       "Every free host follows the same shape: put index.html at the root, point the host at it, open the URL."),
-    B("Get your page ready to ship: give it a title, a meta description and a favicon. Put them at the top of your HTML; Export moves them into the head for you. Then deploy it and paste your live URL.",
+    B("Get your page ready to ship: give it a title, a meta description and a favicon. Put them at the top of your HTML; Export moves them into the head for you. The Workshop cannot hold a favicon.ico file, so use an inline icon (a data: URL, as in the example) or a full https link to one. Then deploy it and paste your live URL.",
       "<title>Casa Verde</title>\n<meta name=\"description\" content=\"Weeknight recipes that actually work.\">\n<link rel=\"icon\" href=\"" + FAVICON + "\">",
       "A title for the tab, a description for search results, an icon for bookmarks. Your site now exists on the real internet.",
       [has("title", "A title element"),
        attr("meta[name=\"description\"]", "content", "A meta description with content"),
-       attr("link[rel~=\"icon\"]", "href", "A favicon link with an href"),
-       url("liveUrl", "Your live URL (starts with https://)")]),
+       attr("link[rel~=\"icon\"]", "href", "A favicon the export carries: an inline data: icon or a full https URL", match=ICON_RX,
+            hint="href=\"favicon.ico\" points at a file your export does not include. Use the inline icon from the example, or a full https URL to an icon."),
+       url("liveUrl", "Your live site address (starts with https://)", kind="site")]),
     M("You uploaded your site but the root URL shows a 404 page. What is the most likely cause?",
       ["DNS is broken", "The CSS is too long", "The file is not named index.html, or it sits inside a subfolder", "HTTPS is off"], 2,
       "Hosts look for index.html at the root of what you published. A file named mysite.html, or one tucked inside a folder, never gets served at /."),
@@ -178,6 +234,7 @@ I2 = L("Multi page sites and navigation", ["pages", "navigation", "nav", "links"
 ])
 
 I3 = L("Forms that work", ["forms", "form", "input", "label", "validation", "contact", "email", "netlify", "formspree", "required"], [
+    NEED("Optional: a free Netlify account (Netlify Forms) or a free Formspree account to receive the messages. Without one the form still validates in the browser; it just has nowhere to send. Cost: free."),
     C("The parts of a form",
       "A form wraps inputs. Every input gets a label whose for matches the input's id. type=\"email\" and type=\"tel\" bring up the right phone keyboard. A button with type=\"submit\" sends it.",
       "<form>\n  <label for=\"email\">Email</label>\n  <input id=\"email\" name=\"email\" type=\"email\" required>\n  <button type=\"submit\">Send</button>\n</form>"),
@@ -195,13 +252,17 @@ I3 = L("Forms that work", ["forms", "form", "input", "label", "validation", "con
        has("form textarea", "A textarea for the message"),
        has("form button[type=\"submit\"]", "A submit button")]),
     C("Sending without a server",
-      "A static host cannot run code, so a form service receives the submission. Netlify Forms: add data-netlify=\"true\" and a name to the form. Formspree: set action to your Formspree URL. Both want method=\"post\". A hidden honeypot field catches bots, because people never fill in a field they cannot see."),
-    B("Wire the form up: method=\"post\", either data-netlify=\"true\" or an action URL, and a hidden honeypot input named bot-field.",
+      "A static host cannot run code, so a form service receives the submission. Netlify Forms: add data-netlify=\"true\" and a name to the form. Formspree: set action to your Formspree URL. Both want method=\"post\". A honeypot catches bots: a real text field that people cannot see, so only a bot fills it in. Hide it with the hidden attribute on a wrapper or with CSS. Do not use type=\"hidden\": many bots skip those, so they never take the bait."),
+    B("Wire the form up: method=\"post\", either data-netlify=\"true\" or an action URL, and a honeypot: a real text input named bot-field that people cannot see (wrap it in an element with the hidden attribute, or hide it with CSS).",
       "<form name=\"contact\" method=\"post\" data-netlify=\"true\" netlify-honeypot=\"bot-field\">\n  <p hidden><label>Skip this <input name=\"bot-field\"></label></p>\n  ...\n</form>",
       "Posted, routed to a service, and guarded against the laziest bots. Submit it once on the live site to confirm it arrives.",
       [has("form[method=\"post\" i]", "The form uses method=\"post\""),
        has("form[data-netlify], form[action]", "The form has data-netlify or an action"),
-       has("form input[name=\"bot-field\"], form input[name=\"_gotcha\"]", "A honeypot input (bot-field or _gotcha)")]),
+       has("form input[name=\"bot-field\"], form input[name=\"_gotcha\"]", "A honeypot input (bot-field or _gotcha)"),
+       none("form input[name=\"bot-field\"][type=\"hidden\" i], form input[name=\"_gotcha\"][type=\"hidden\" i]", "The honeypot is a real text field, not type=\"hidden\"",
+            hint="Bots often skip type=\"hidden\" inputs. Use a normal input and hide it from people instead."),
+       invisible("form input[name=\"bot-field\"], form input[name=\"_gotcha\"]", "People cannot see the honeypot",
+                 hint="Wrap it in <p hidden>...</p>, or give it a class your CSS hides with display: none.")]),
     K("Browsers validate, but your code should too. Write formErrors(fields) that returns an array of the field names that are invalid, in this order: \"name\" if empty after trimming, \"email\" if it lacks an @ or a dot after the @, \"message\" if shorter than 10 characters after trimming.",
       "function formErrors(fields) {\n  const errors = [];\n  \n  return errors;\n}",
       "function formErrors(fields) {\n  const errors = [];\n  if (!String(fields.name || \"\").trim()) errors.push(\"name\");\n  const email = String(fields.email || \"\");\n  const at = email.indexOf(\"@\");\n  if (at < 1 || email.indexOf(\".\", at) < 0) errors.push(\"email\");\n  if (String(fields.message || \"\").trim().length < 10) errors.push(\"message\");\n  return errors;\n}",
@@ -235,6 +296,16 @@ I4 = L("Semantic HTML, SEO, and sharing", ["seo", "meta", "description", "open",
       [has("article", "An article element"),
        has("section h2, section h3", "A section with a heading inside"),
        attr("time", "datetime", "A time element with datetime")]),
+    C("Landmarks and headings",
+      "header, nav, main and footer are landmarks: screen reader users jump between them, and later lessons build on them. One main per page holds the content that is unique to it. Cards read better with a heading of their own, so people scanning the page, or a list of headings, can tell them apart.",
+      "<main>\n  <h1>Casa Verde</h1>\n  <div class=\"card\"><h3>Soups</h3><p>Warm bowls.</p></div>\n</main>\n<footer>\n  <p>Casa Verde, weeknight recipes</p>\n</footer>"),
+    B("Give the page its landmarks: wrap your content (everything after the nav) in a main element, add a footer at the end, and give at least three of your cards a heading (h2 or h3).",
+      "<nav>...</nav>\n<main>\n  <h1>Casa Verde</h1>\n  ...\n  <div class=\"gallery\">\n    <div class=\"card\"><h3>Soups</h3><p>Warm bowls</p></div>\n    <div class=\"card\"><h3>Pasta</h3><p>Ten minutes</p></div>\n    <div class=\"card\"><h3>Salads</h3><p>Crunchy</p></div>\n  </div>\n</main>\n<footer>\n  <p>Casa Verde, weeknight recipes</p>\n</footer>",
+      "Your page now has the structure every later lesson builds on: a main to skip to, a footer for links, and cards people can tell apart.",
+      [has("main", "A main element"),
+       has("footer", "A footer element"),
+       count(".card h2, .card h3", 3, "At least three cards with a heading",
+             hint="Add an h3 at the top of each card, for example <h3>Soups</h3>.")]),
     O("Order what a crawler does with your page, in the model from this lesson.",
       ["Fetch the HTML", "Read the title and meta description", "Read the headings and main content", "Follow the links to more pages"],
       "It has to fetch before it reads, and it finds new pages through the links it reads. That is why internal links matter for SEO.",
@@ -264,7 +335,7 @@ I5 = L("The cascade, specificity, and states", ["cascade", "specificity", "hover
     O("Order these from lowest to highest specificity.",
       ["p", ".card", ".card p", "#main", "style=\"\" (inline)"],
       "Elements, then classes, then a class plus element, then an id, then inline style.",
-      code_items=True),
+      code_items=True, note="Order matters: each one outweighs every item before it."),
 ])
 
 I6 = L("Motion with care", ["animation", "transition", "keyframes", "motion", "reduced", "transform", "opacity"], [
@@ -301,13 +372,19 @@ I7 = L("Images done right", ["images", "srcset", "picture", "webp", "avif", "laz
     C("Let the browser choose",
       "srcset lists the same image at several widths. sizes says how wide it displays. The browser downloads the smallest file that looks sharp. picture with source elements offers new formats with a fallback.",
       "<picture>\n  <source type=\"image/webp\" srcset=\"hero-800.webp 800w, hero-1600.webp 1600w\">\n  <img src=\"hero-800.jpg\" srcset=\"hero-800.jpg 800w, hero-1600.jpg 1600w\" sizes=\"100vw\" width=\"1600\" height=\"900\" alt=\"Lemon pasta in a blue bowl\">\n</picture>"),
-    B("Make one image responsive: wrap it in picture with a source element, give the img a srcset, width and height, and lazy-load an image that sits further down the page.",
-      "<picture>\n  <source type=\"image/webp\" srcset=\"https://picsum.photos/id/292/800/450.webp 800w\">\n  <img src=\"https://picsum.photos/id/292/800/450\" srcset=\"https://picsum.photos/id/292/800/450 800w, https://picsum.photos/id/292/1600/900 1600w\" sizes=\"100vw\" width=\"800\" height=\"450\" alt=\"Ingredients on a table\">\n</picture>\n<img src=\"https://picsum.photos/id/429/600/400\" loading=\"lazy\" width=\"600\" height=\"400\" alt=\"A finished dish\">",
+    B("Make one image responsive: wrap it in picture with a source element, give the img a srcset, width and height, lazy-load an image that sits further down the page, and add img { max-width: 100%; height: auto; } to your CSS so a 1200 pixel image shrinks to fit a phone instead of widening the page. The Workshop cannot hold image files, so use full https image URLs, like the picsum.photos ones in the example; on your own host you can swap in files you upload.",
+      "<picture>\n  <source type=\"image/webp\" srcset=\"https://picsum.photos/id/292/800/450.webp 800w\">\n  <img src=\"https://picsum.photos/id/292/800/450\" srcset=\"https://picsum.photos/id/292/800/450 800w, https://picsum.photos/id/292/1600/900 1600w\" sizes=\"100vw\" width=\"800\" height=\"450\" alt=\"Ingredients on a table\">\n</picture>\n<img src=\"https://picsum.photos/id/429/600/400\" loading=\"lazy\" width=\"600\" height=\"400\" alt=\"A finished dish\">\n\n/* CSS */\nimg {\n  max-width: 100%;\n  height: auto;\n}",
       "Phones get small files, big screens get sharp ones, and images below the fold wait until someone scrolls.",
       [has("picture source", "A picture element with a source"),
        attr("img[srcset]", "srcset", "An img with srcset"),
        has("img[width][height]", "An img with width and height"),
-       has("img[loading=\"lazy\"]", "An img with loading=\"lazy\"")]),
+       has("img[loading=\"lazy\"]", "An img with loading=\"lazy\""),
+       style("img", "maxWidth", "Images shrink to fit: img has max-width: 100%", equals="100%",
+             hint="Width and height attributes reserve space, but without max-width a big image runs off the side of a phone. Add img { max-width: 100%; height: auto; }."),
+       attr("img", "src", "Every image uses a full https URL, so it loads", match=HTTPS_IMG_RX, every=True,
+            hint="A name like hero.jpg points at a file the Workshop and your export do not have, so it shows as a broken image. Use a full https URL, such as https://picsum.photos/id/292/800/450."),
+       attr("img[srcset], source[srcset]", "srcset", "Every srcset lists full https URLs", match=SRCSET_RX, every=True,
+            hint="Each entry is a full https URL and a width, separated by commas: https://picsum.photos/id/292/800/450 800w, https://picsum.photos/id/292/1600/900 1600w")]),
     M("Why set width and height on images?",
       ["They make the file smaller", "The browser reserves the space, so text does not jump when the image arrives", "They are required for alt text to work", "They turn on lazy loading"], 1,
       "Without dimensions the page reflows when each image loads. That jump is layout shift, and it is measured."),
@@ -319,29 +396,31 @@ I7 = L("Images done right", ["images", "srcset", "picture", "webp", "avif", "laz
 
 I8 = L("A little JavaScript on your page", ["javascript", "dom", "events", "menu", "dark", "mode", "theme", "localstorage", "toggle", "script"], [
     C("Three moves cover most page scripts",
-      "Find an element with querySelector, listen with addEventListener, change something with classList or setAttribute. Put the script at the end of body, or use defer on an external file. The Prexis preview never runs scripts, for your safety; checks read your code, the code step below runs your logic, and your exported site runs it for real.",
+      "Find an element with querySelector, listen with addEventListener, change something with classList or setAttribute. Put the script at the end of body, or use defer on an external file. Use type=\"module\" on your script tags: each module keeps its names to itself, so two scripts can both have a btn without crashing. The Prexis preview never runs scripts, for your safety; checks read your code, the code step below runs your logic, and your exported site runs it for real.",
       "const btn = document.querySelector(\".menu-toggle\");\nbtn.addEventListener(\"click\", () => {\n  const open = btn.getAttribute(\"aria-expanded\") === \"true\";\n  btn.setAttribute(\"aria-expanded\", String(!open));\n  document.querySelector(\"nav\").classList.toggle(\"open\");\n});"),
     M("Why use a button element for the menu toggle instead of a div?",
       ["Divs cannot have click handlers", "A button is focusable and works with Enter and Space for free", "Buttons load faster", "Divs break CSS"], 1,
       "Keyboard support and the correct role come built in. A clickable div needs all of that rebuilt by hand."),
-    B("Add a mobile menu: a button with class menu-toggle and aria-expanded=\"false\", and a script that toggles a class with classList.toggle.",
-      "<button class=\"menu-toggle\" aria-expanded=\"false\">Menu</button>\n<script>\n  const btn = document.querySelector(\".menu-toggle\");\n  btn.addEventListener(\"click\", () => {\n    const open = btn.getAttribute(\"aria-expanded\") === \"true\";\n    btn.setAttribute(\"aria-expanded\", String(!open));\n    document.querySelector(\"nav\").classList.toggle(\"open\");\n  });\n</script>",
-      "aria-expanded tells screen readers the menu state; the class tells your CSS.",
+    B("Add a mobile menu: a button with class menu-toggle and aria-expanded=\"false\" just before your nav, a script that toggles an open class on the nav with classList.toggle, and CSS that hides the nav on narrow screens until it has the open class. The lesson preview is narrow, so your nav will tuck away behind the button there; export and open the page at phone width to watch the button open it.",
+      "<button class=\"menu-toggle\" aria-expanded=\"false\">Menu</button>\n<nav>...</nav>\n<script type=\"module\">\n  const btn = document.querySelector(\".menu-toggle\");\n  const nav = document.querySelector(\"nav\");\n  btn.addEventListener(\"click\", () => {\n    const open = nav.classList.toggle(\"open\");\n    btn.setAttribute(\"aria-expanded\", String(open));\n  });\n</script>\n\n/* CSS */\n.menu-toggle { display: none; }\n@media (max-width: 600px) {\n  .menu-toggle { display: inline-block; }\n  nav { display: none; }\n  nav.open { display: flex; flex-direction: column; gap: 8px; }\n}",
+      "aria-expanded tells screen readers the menu state; the open class tells your CSS to show the nav. On wide screens the button hides and the nav stays put.",
       [has("button.menu-toggle", "A button with class menu-toggle"),
        attr("button.menu-toggle", "aria-expanded", "The button has aria-expanded"),
        has("script", "A script element"),
-       html("classList.toggle", "The script uses classList.toggle")]),
+       html("classList.toggle", "The script uses classList.toggle"),
+       css("nav.open", "CSS shows the nav when it has the open class",
+           hint="Without CSS for nav.open the button flips a class nobody styles, so nothing visibly happens. Inside @media (max-width: 600px), hide nav and show nav.open, as in the example.")]),
     C("Dark mode from your tokens",
       "You already keep colors in custom properties. Redefine them under [data-theme=\"dark\"] on the html element, flip that attribute with a button, and save the choice in localStorage so it sticks.",
       "[data-theme=\"dark\"] {\n  --paper: #1d1f24;\n  --ink: #f1efe8;\n}"),
-    K("Write pickTheme(saved, prefersDark). Return saved when it is \"light\" or \"dark\". Otherwise return \"dark\" if prefersDark is true, else \"light\".",
+    K("Write pickTheme(saved, prefersDark). Return saved only when it is exactly \"light\" or \"dark\"; anything else that was saved (null, or a stray value like \"purple\") is ignored. Otherwise return \"dark\" if prefersDark is true, else \"light\".",
       "function pickTheme(saved, prefersDark) {\n  \n}",
       "function pickTheme(saved, prefersDark) {\n  if (saved === \"light\" || saved === \"dark\") return saved;\n  return prefersDark ? \"dark\" : \"light\";\n}",
       [T("pickTheme(\"dark\", false)", "dark"), T("pickTheme(\"light\", true)", "light"),
        T("pickTheme(null, true)", "dark"), T("pickTheme(\"purple\", false)", "light")],
       "A saved choice beats the system setting; the system setting beats your default."),
     B("Wire dark mode: a [data-theme=\"dark\"] rule in your CSS that changes your tokens, a button with class theme-toggle, and a script that saves the choice with localStorage.",
-      "<button class=\"theme-toggle\">Dark mode</button>\n<script>\n  const root = document.documentElement;\n  root.dataset.theme = localStorage.getItem(\"theme\") || \"light\";\n  document.querySelector(\".theme-toggle\").addEventListener(\"click\", () => {\n    root.dataset.theme = root.dataset.theme === \"dark\" ? \"light\" : \"dark\";\n    localStorage.setItem(\"theme\", root.dataset.theme);\n  });\n</script>\n\n/* CSS */\n[data-theme=\"dark\"] { --paper: #1d1f24; --ink: #f1efe8; }",
+      "<button class=\"theme-toggle\">Dark mode</button>\n<script type=\"module\">\n  const root = document.documentElement;\n  root.dataset.theme = localStorage.getItem(\"theme\") || \"light\";\n  document.querySelector(\".theme-toggle\").addEventListener(\"click\", () => {\n    root.dataset.theme = root.dataset.theme === \"dark\" ? \"light\" : \"dark\";\n    localStorage.setItem(\"theme\", root.dataset.theme);\n  });\n</script>\n\n/* CSS */\n[data-theme=\"dark\"] { --paper: #1d1f24; --ink: #f1efe8; }",
       "Export and open it in a browser: the toggle works and remembers your choice after a reload.",
       [css("[data-theme=\"dark\"]", "A [data-theme=\"dark\"] rule in your CSS"),
        has("button.theme-toggle", "A button with class theme-toggle"),
@@ -352,6 +431,7 @@ I8 = L("A little JavaScript on your page", ["javascript", "dom", "events", "menu
 ])
 
 I9 = L("Git and GitHub for real", ["git", "github", "commit", "push", "repository", "repo", "version", "control", "pages", "capstone"], [
+    NEED("A free GitHub account and Git on your computer (git-scm.com; on a Mac, typing git in Terminal offers to install it). GitHub Desktop works too if you would rather click than type. Cost: free."),
     C("Snapshots with a story",
       "Git saves snapshots of your files called commits, each with a message saying why. GitHub stores your repository online, shows the history, and can publish it with GitHub Pages. If a change breaks the site, you can go back to any commit."),
     O("Order the everyday Git loop.",
@@ -371,7 +451,7 @@ I9 = L("Git and GitHub for real", ["git", "github", "commit", "push", "repositor
     M("You pushed a change but the live site still shows the old version. What do you check first?",
       ["Delete the repository", "The Pages or Actions tab, to see if the deploy finished or failed", "Buy a new domain", "Rewrite the commit"], 1,
       "Publishing takes a minute and can fail. The deploy status tells you which one happened."),
-    B("Intermediate capstone. Your site should have everything from this level: a nav with 3 links and aria-current, a contact form, a meta description and og:image, a favicon, a responsive image, a theme toggle, and a footer link to your GitHub repo. Commit it, push it, and paste your repo URL.",
+    B("Intermediate capstone. Your site should have everything from this level: a nav with 3 links and aria-current, a contact form, a meta description and og:image, a favicon, a responsive image, a theme toggle, and a link to your GitHub repo in your footer. Commit it, push it, and paste your repo URL.",
       "<footer>\n  <p>Source on <a href=\"https://github.com/you/my-site\">GitHub</a></p>\n</footer>",
       "A real multi page site, live, in Git, with a form and dark mode. You run a website now.",
       [count("nav a", 3, "Nav with at least 3 links"),
@@ -379,12 +459,12 @@ I9 = L("Git and GitHub for real", ["git", "github", "commit", "push", "repositor
        has("form input[type=\"email\"]", "A contact form with an email input"),
        attr("meta[name=\"description\"]", "content", "A meta description"),
        attr("meta[property=\"og:image\"]", "content", "An og:image tag"),
-       attr("link[rel~=\"icon\"]", "href", "A favicon link"),
+       attr("link[rel~=\"icon\"]", "href", "A favicon link (inline data: or https)", match=ICON_RX),
        has("img[srcset]", "A responsive image with srcset"),
        has("button.theme-toggle", "A theme toggle button"),
        has("footer a[href*=\"github.com\"]", "A footer link to your GitHub repo"),
        confirm("I committed and pushed this version to GitHub"),
-       url("repoUrl", "Your GitHub repo URL")]),
+       url("repoUrl", "Your GitHub repo URL", kind="repo")]),
 ])
 
 # =====================================================================
@@ -400,14 +480,14 @@ A1 = L("Modern CSS architecture", ["css", "architecture", "layer", "container", 
     M("When is a container query better than a media query?",
       ["When the whole page changes at a phone width", "When the same component appears in a wide main area and a narrow sidebar", "When printing", "Never, they do the same thing"], 1,
       "Media queries know the window. A card does not care about the window; it cares about the space it was given."),
-    B("Refactor your CSS: declare layers with @layer, rename a card heading to class card__title, and make your card wrapper a container with an @container rule.",
+    B("Refactor your CSS: declare layers with @layer, give one card heading the class card__title (your cards got headings in Semantic HTML, SEO, and sharing; add an h3 to a card if it has none), and make your card wrapper a container with an @container rule.",
       "@layer reset, base, components;\n@layer components {\n  .cards { container-type: inline-size; }\n  @container (min-width: 500px) {\n    .card { display: flex; gap: 12px; }\n  }\n}\n\n<h3 class=\"card__title\">Lemon pasta</h3>",
       "Your styles now have an explicit order and your cards adapt to wherever you put them.",
       [css("@layer", "An @layer rule"),
-       has(".card__title", "An element with class card__title"),
+       has(".card__title", "An element with class card__title", hint="Add the class to a heading inside a card: <h3 class=\"card__title\">Soups</h3>."),
        css("container-type", "A container-type declaration"),
        css("@container", "An @container rule")]),
-    B("Use smarter selectors: make sure at least one card contains an image so .card:has(img) matches, and write a :where( rule.",
+    B("Use smarter selectors: make sure at least one card contains an image so .card:has(img) matches (move an image into a card, or add one), and write a :where( rule.",
       ".card:has(img) { padding-top: 0; }\n:where(.card, .panel) h3 { margin-top: 0; }",
       ":has() replaces the extra class you used to add by hand. :where() groups selectors with zero specificity, so it never fights your components.",
       [has(".card:has(img)", "A card that contains an image"),
@@ -435,13 +515,14 @@ A2 = L("JavaScript modules and components", ["modules", "import", "export", "com
       [T("renderCard({ title: \"Lemon pasta\", summary: \"Ten minutes\" })", "<article class=\"card\"><h3 class=\"card__title\">Lemon pasta</h3><p>Ten minutes</p></article>"),
        T("[{ title: \"A\", summary: \"1\" }, { title: \"B\", summary: \"2\" }].map(renderCard).join(\"\")", "<article class=\"card\"><h3 class=\"card__title\">A</h3><p>1</p></article><article class=\"card\"><h3 class=\"card__title\">B</h3><p>2</p></article>")],
       "One function, any number of cards. This is the core idea behind every component framework."),
-    B("Make your cards data-driven: add a module script that defines renderCard and maps over an array into .grid. Keep three static .card elements inside .grid as the fallback; the preview does not run scripts, and your exported site replaces them.",
-      "<div class=\"grid\">\n  <article class=\"card\">...</article>\n  <article class=\"card\">...</article>\n  <article class=\"card\">...</article>\n</div>\n<script type=\"module\">\n  const projects = [{ title: \"Lemon pasta\", summary: \"Ten minutes\" }];\n  const renderCard = (p) => `<article class=\"card\"><h3 class=\"card__title\">${p.title}</h3><p>${p.summary}</p></article>`;\n  document.querySelector(\".grid\").innerHTML = projects.map(renderCard).join(\"\");\n</script>",
+    B("Make your cards data-driven: add a module script that defines renderCard and maps over an array into your card grid. That is the .gallery you built in Grid for real layouts, or a .grid if you named it that. Keep three static .card elements inside it as the fallback; the preview does not run scripts, and your exported site replaces them.",
+      "<div class=\"gallery\">\n  <article class=\"card\">...</article>\n  <article class=\"card\">...</article>\n  <article class=\"card\">...</article>\n</div>\n<script type=\"module\">\n  const projects = [{ title: \"Lemon pasta\", summary: \"Ten minutes\" }];\n  const renderCard = (p) => `<article class=\"card\"><h3 class=\"card__title\">${p.title}</h3><p>${p.summary}</p></article>`;\n  document.querySelector(\".gallery, .grid\").innerHTML = projects.map(renderCard).join(\"\");\n</script>",
       "The markup now comes from data. Adding a project is one line in an array, not a copy and paste.",
       [has("script[type=\"module\"]", "A script with type=\"module\""),
        html("renderCard", "A renderCard function"),
        html(".map(", "The data is rendered with map"),
-       count(".grid .card", 3, "Three fallback cards inside .grid")]),
+       count(".grid .card, .gallery .card", 3, "Three fallback cards inside your .gallery or .grid",
+             hint="The Beginner grid is class gallery. Keep at least three .card elements inside it (or inside a .grid).")]),
     C("textContent for anything a person typed",
       "innerHTML parses its string as HTML. If that string came from a visitor, they can inject a script. textContent inserts plain text and can never become markup. Use template literals for your own trusted data, and textContent for theirs."),
     M("Which is safest for putting a visitor's name on the page?",
@@ -467,13 +548,19 @@ A3 = L("Fetching data", ["fetch", "json", "async", "await", "promise", "loading"
        T("loadProjects(async () => ({ ok: false, status: 404, json: async () => ({}) }))", {"status": "error", "items": []}),
        T("loadProjects(async () => { throw new Error(\"offline\"); })", {"status": "error", "items": []})],
       "Every fetch has three outcomes: data, a bad status, or no answer at all. Handle all three."),
-    B("Add loading and error states to the page: an element with class loading, an element with class error and role=\"alert\", and a script that calls fetch( inside try and catch.",
-      "<p class=\"loading\">Loading projects...</p>\n<p class=\"error\" role=\"alert\" hidden>Could not load projects. Try again.</p>\n<script type=\"module\">\n  try {\n    const res = await fetch(\"data.json\");\n  } catch (e) {\n    document.querySelector(\".error\").hidden = false;\n  }\n</script>",
-      "Visitors now know when the page is waiting and when something failed, instead of staring at an empty grid.",
+    C("Data the page carries",
+      "Your exported site is one file, so there is no data.json next to it yet, and a page opened straight from disk cannot fetch at all. Carry a copy of the data inside the page as a JSON data island: a script tag with type=\"application/json\". Browsers never run it; your code reads it with JSON.parse. Fetch fresh data first, fall back to the island, and show the error only when both fail.",
+      "<script type=\"application/json\" id=\"recipes-data\">\n[{ \"title\": \"Lemon pasta\", \"summary\": \"Ten minutes\" }]\n</script>"),
+    B("Add loading and error states with data that always arrives: an element with class loading, an element with class error and role=\"alert\", a JSON data island (a script with type=\"application/json\" and an id), and a module script that tries fetch( first, falls back to the island with JSON.parse inside catch, hides the loading message, and shows the error only if both fail.",
+      "<p class=\"loading\">Loading recipes...</p>\n<p class=\"error\" role=\"alert\" hidden>Could not load recipes. Try again.</p>\n<script type=\"application/json\" id=\"recipes-data\">\n[{ \"title\": \"Lemon pasta\", \"summary\": \"Ten minutes\" }, { \"title\": \"Tomato soup\", \"summary\": \"One pot\" }]\n</script>\n<script type=\"module\">\n  let recipes = [];\n  try {\n    const res = await fetch(\"data.json\");\n    if (!res.ok) throw new Error(\"HTTP \" + res.status);\n    recipes = await res.json();\n  } catch (e) {\n    try {\n      recipes = JSON.parse(document.getElementById(\"recipes-data\").textContent);\n    } catch (e2) {\n      document.querySelector(\".error\").hidden = false;\n    }\n  }\n  document.querySelector(\".loading\").hidden = true;\n</script>",
+      "Visitors now know when the page is waiting and when something failed, and the page works on any host, even opened from a file. Upload a real data.json later and the same code uses it.",
       [has(".loading", "An element with class loading"),
        has(".error[role=\"alert\"]", "An .error element with role=\"alert\""),
+       has("script[type=\"application/json\"][id]", "A JSON data island: a script with type=\"application/json\" and an id"),
        html("fetch(", "The script calls fetch("),
-       html("catch", "The script handles failure with catch")]),
+       html("catch", "The script handles failure with catch"),
+       rx(r"JSON\.parse\(", "It falls back to the island with JSON.parse(",
+          hint="Inside catch, read the island: JSON.parse(document.getElementById(\"recipes-data\").textContent).")]),
     K("Write filterProjects(list, query). Return the items whose title, or any of their tags, contains query, ignoring case and surrounding spaces. An empty query returns the whole list.",
       "function filterProjects(list, query) {\n  \n}",
       "function filterProjects(list, query) {\n  const q = String(query || \"\").trim().toLowerCase();\n  if (!q) return list;\n  return list.filter((p) => p.title.toLowerCase().includes(q) || (p.tags || []).some((t) => t.toLowerCase().includes(q)));\n}",
@@ -492,7 +579,17 @@ A3 = L("Fetching data", ["fetch", "json", "async", "await", "promise", "loading"
       note="Each step uses the result of the one before it."),
 ])
 
-A4 = L("Build tools: npm and Vite", ["npm", "vite", "package", "json", "build", "bundler", "node", "dev", "server", "tooling"], [
+A4 = L("Build tools: npm and Vite", ["npm", "vite", "package", "json", "build", "bundler", "node", "dev", "server", "tooling", "terminal"], [
+    NEED("A computer you can install software on (Windows, macOS or Linux; a phone or a locked school laptop will not do), Node.js 20 or newer from nodejs.org (the LTS download), and a code editor such as VS Code. Cost: free. From this lesson on, part of the work happens in a terminal outside Prexis, so the next two cards cover the terminal from zero."),
+    C("The terminal in five commands",
+      "Open it: on macOS, Terminal (press Cmd and Space, type Terminal). On Windows, PowerShell or the Terminal app. In VS Code, View, then Terminal. You type a command, press Enter and read the answer. Tab finishes a file name for you, and the up arrow brings back the last command. You only need a handful to start.",
+      "pwd            # where am I?\nls             # what is in this folder? (dir in old Windows cmd)\nmkdir my-site  # make a folder\ncd my-site     # go into it\ncd ..          # go back up one folder"),
+    C("Install Node and check it",
+      "Install the LTS version from nodejs.org, then close the terminal and open a new one. node -v and npm -v should each print a version number, like v20.11.0. npm comes with Node; it downloads the tools a project lists in package.json. If you see command not found, the window was opened before the install; a new window fixes it.",
+      "node -v\nnpm -v"),
+    M("You type npm -v and the terminal says command not found, right after installing Node. What is the most likely fix?",
+      ["Reinstall your operating system", "Open a new terminal window, then try again", "Type it in the browser address bar", "Put sudo in front of every command"], 1,
+      "A terminal reads the list of installed programs when it opens. A window opened before the install does not know Node exists yet."),
     C("What the tools do",
       "npm installs packages listed in package.json. Vite runs a dev server that reloads as you save, and npm run build bundles and minifies everything into a dist folder ready to deploy."),
     M("What is in the dist folder after npm run build?",
@@ -512,16 +609,18 @@ A4 = L("Build tools: npm and Vite", ["npm", "vite", "package", "json", "build", 
     M("Why should node_modules stay out of Git?",
       ["It is secret", "npm install rebuilds it from package.json and the lockfile, and it is huge", "Git cannot store JavaScript", "Vite deletes it"], 1,
       "Commit package.json and package-lock.json; anyone can recreate node_modules exactly from those."),
-    B("Point your page at a Vite entry: add <script type=\"module\" src=\"/src/main.js\"></script> to your HTML, then set up the project outside Prexis and confirm each part.",
+    B("Point your page at a Vite entry: add <script type=\"module\" src=\"/src/main.js\"></script> to your HTML, then set up the project outside Prexis and confirm each part. main.js lives in your Vite project, not in the Workshop, so the Workshop lists it under files your export does not include. That is expected: your Vite build is now the real site.",
       "<script type=\"module\" src=\"/src/main.js\"></script>\n\n// package.json\n\"scripts\": { \"dev\": \"vite\", \"build\": \"vite build\", \"preview\": \"vite preview\" }\n\n# .gitignore\nnode_modules\ndist",
       "Your site has a real toolchain. The same page, now built the way production sites are built.",
       [has("script[type=\"module\"][src*=\"main\"]", "A module script pointing at your main.js entry"),
+       confirm("node -v prints version 20 or newer in my terminal"),
        confirm("package.json has dev and build scripts"),
        confirm(".gitignore lists node_modules and dist"),
        confirm("npm run build produced a dist folder")]),
 ])
 
 A5 = L("Deploy from Git", ["deploy", "continuous", "netlify", "vercel", "preview", "build", "ship", "pull", "request"], [
+    NEED("Your site in a GitHub repo (from Git and GitHub for real) and a free Netlify or Vercel account that you sign in to with GitHub. Cost: free on the hobby plans."),
     C("Push to deploy",
       "Connect your GitHub repo to Netlify or Vercel once. After that, every push to main builds and publishes the site, and every pull request gets its own preview URL. No more dragging folders."),
     W("Connect the repo", "Your Vite site is on GitHub. Make Netlify or Vercel build it on every push.",
@@ -540,7 +639,7 @@ A5 = L("Deploy from Git", ["deploy", "continuous", "netlify", "vercel", "preview
       [has("footer a[href^=\"https://\"]", "A footer link to your live site over https"),
        confirm("netlify.toml or vercel.json sets npm run build and dist"),
        confirm("A push to main triggered a deploy that succeeded"),
-       url("liveUrl", "Your live URL")]),
+       url("liveUrl", "Your live site address", kind="site")]),
     C("Preview deploys",
       "Open a pull request and the host comments with a preview URL built from that branch. Click through it before merging. Problems show up on the preview, not on your real site."),
     O("Order a change from branch to live.",
@@ -553,6 +652,7 @@ A5 = L("Deploy from Git", ["deploy", "continuous", "netlify", "vercel", "preview
 ])
 
 A6 = L("Custom domain and HTTPS", ["domain", "dns", "https", "certificate", "cname", "records", "canonical", "registrar", "ssl"], [
+    NEED("A domain name from a registrar such as Cloudflare, Porkbun or Namecheap, about 10 to 20 dollars a year. This is the only paid step in the course, and it is optional: you can pass this lesson without buying one, and come back when you are ready."),
     C("Domains in one minute",
       "A registrar rents you a name like casaverde.com for about 10 to 20 dollars a year. DNS is the phone book that maps the name to your host. The theory is in Websites that work, lesson Domains, hosting, going live. Here you do it."),
     C("The records you will add",
@@ -572,7 +672,7 @@ A6 = L("Custom domain and HTTPS", ["domain", "dns", "https", "certificate", "cna
       [attr("link[rel=\"canonical\"]", "href", "A canonical link using https", contains="https://"),
        attr("meta[property=\"og:image\"]", "content", "og:image uses https", contains="https://"),
        none("a[href^=\"http:\"], img[src^=\"http:\"], link[href^=\"http:\"]", "No http:// links, images or stylesheets"),
-       url("domainUrl", "Your custom domain (optional)", optional=True)]),
+       url("domainUrl", "Your custom domain (optional)", optional=True, kind="domain")]),
     M("After setup, the browser says Not secure on your domain. What is the likely cause?",
       ["The domain is too long", "Mixed content (an http:// image or script), or the certificate is still being issued", "You used a CNAME", "Your CSS has errors"], 1,
       "One insecure resource drops the lock. If there is none, wait for the certificate and reload."),
@@ -616,7 +716,7 @@ A8 = L("Accessibility deep dive", ["accessibility", "aria", "dialog", "modal", "
       "dialog.showModal() opens a modal that traps focus, makes the rest of the page inert, and closes on Escape. Your job: a close button inside, and focus back on the button that opened it.",
       "const dlg = document.querySelector(\"dialog\");\nopenBtn.addEventListener(\"click\", () => dlg.showModal());\ndlg.addEventListener(\"close\", () => openBtn.focus());"),
     B("Add an accessible project modal: a dialog element with a close button inside, and a script that opens it with showModal and returns focus with .focus() when it closes.",
-      "<button class=\"open-details\">Details</button>\n<dialog aria-labelledby=\"dlg-title\">\n  <h2 id=\"dlg-title\">Lemon pasta</h2>\n  <p>Ten minutes, one pan.</p>\n  <form method=\"dialog\"><button>Close</button></form>\n</dialog>\n<script>\n  const dlg = document.querySelector(\"dialog\");\n  const open = document.querySelector(\".open-details\");\n  open.addEventListener(\"click\", () => dlg.showModal());\n  dlg.addEventListener(\"close\", () => open.focus());\n</script>",
+      "<button class=\"open-details\">Details</button>\n<dialog aria-labelledby=\"dlg-title\">\n  <h2 id=\"dlg-title\">Lemon pasta</h2>\n  <p>Ten minutes, one pan.</p>\n  <form method=\"dialog\"><button>Close</button></form>\n</dialog>\n<script type=\"module\">\n  const dlg = document.querySelector(\"dialog\");\n  const opener = document.querySelector(\".open-details\");\n  opener.addEventListener(\"click\", () => dlg.showModal());\n  dlg.addEventListener(\"close\", () => opener.focus());\n</script>",
       "Keyboard users can open, use and close it, and they land back where they started.",
       [has("dialog", "A dialog element"),
        has("dialog button", "A close button inside the dialog"),
@@ -625,11 +725,11 @@ A8 = L("Accessibility deep dive", ["accessibility", "aria", "dialog", "modal", "
     M("Which element gives you keyboard support for free?",
       ["<div onclick>", "<span role=\"button\">", "<button>", "<a> without href"], 2,
       "button is focusable and fires click on Enter and Space. An a without href is not even focusable."),
-    B("Add a skip link: an a with class skip-link and href=\"#main\" at the very top of your HTML, a main element with id=\"main\", and CSS that shows the link on :focus.",
+    B("Add a skip link: an a with class skip-link and href=\"#main\" at the very top of your HTML, id=\"main\" on your main element (you added main in Semantic HTML, SEO, and sharing; wrap your content in one if you have none), and CSS that shows the link on :focus.",
       "<a class=\"skip-link\" href=\"#main\">Skip to content</a>\n...\n<main id=\"main\">...</main>\n\n.skip-link { position: absolute; left: -999px; }\n.skip-link:focus { left: 8px; top: 8px; }",
       "Keyboard users skip the nav in one keystroke instead of tabbing through every link on every page.",
       [has("a.skip-link[href=\"#main\"]", "A skip link pointing at #main"),
-       has("main#main", "A main element with id=\"main\""),
+       has("main#main", "A main element with id=\"main\"", hint="Add the id to the main you already have: <main id=\"main\">."),
        css(".skip-link:focus", "The skip link appears on :focus")]),
     O("Run a quick screen reader test.",
       ["Turn on the screen reader (VoiceOver or NVDA)", "Jump through the headings", "Jump through the landmarks", "Tab through every control and listen to its name", "Open and close the modal"],
@@ -641,6 +741,7 @@ A8 = L("Accessibility deep dive", ["accessibility", "aria", "dialog", "modal", "
 ])
 
 A9 = L("Checks that run themselves: linting and CI", ["ci", "github", "actions", "lint", "eslint", "prettier", "workflow", "pipeline", "branch", "protection", "capstone"], [
+    NEED("Your GitHub repo and the Vite project from earlier lessons. GitHub Actions is free for public repos and includes free monthly minutes for private ones. Cost: free."),
     C("Machines catch the boring mistakes",
       "A linter (ESLint) flags likely bugs. A formatter (Prettier) settles style arguments. Continuous integration runs them, plus your build, on every pull request, so a broken change cannot slip in."),
     W("A GitHub Actions workflow", "Run lint and build on every pull request.",
@@ -673,14 +774,126 @@ A9 = L("Checks that run themselves: linting and CI", ["ci", "github", "actions",
        attr("link[rel=\"canonical\"]", "href", "A canonical https link", contains="https://"),
        confirm("package.json has dev, build and lint scripts"),
        confirm(".github/workflows/ci.yml runs lint and build on pull_request"),
-       url("ciUrl", "A link to a passing CI run")]),
+       url("ciUrl", "A link to a passing CI run on GitHub", kind="ci")]),
 ])
 
 # =====================================================================
 # Level 4: Expert
 # =====================================================================
 
+# Longer Expert examples, kept as plain text blocks so they read like the
+# code a learner pastes.
+E2_EXAMPLE = """<div id="cards-root">
+  <article class="card"><h3>Lemon pasta</h3></article>
+  <article class="card"><h3>Tomato soup</h3></article>
+  <article class="card"><h3>Green salad</h3></article>
+</div>
+<script type="module">
+  import { createElement as h, useState } from "https://esm.sh/react@18";
+  import { createRoot } from "https://esm.sh/react-dom@18/client";
+  const recipes = [
+    { id: 1, title: "Lemon pasta" },
+    { id: 2, title: "Tomato soup" },
+    { id: 3, title: "Green salad" },
+  ];
+  function CardGrid() {
+    const [query, setQuery] = useState("");
+    const shown = recipes.filter((r) => r.title.toLowerCase().includes(query.toLowerCase()));
+    return h("div", null,
+      h("input", { type: "search", "aria-label": "Filter recipes", value: query, onChange: (e) => setQuery(e.target.value) }),
+      shown.map((r) => h("article", { key: r.id, className: "card" }, h("h3", null, r.title))));
+  }
+  createRoot(document.getElementById("cards-root")).render(h(CardGrid));
+</script>
+
+In your Vite + React project the same component is JSX in src/CardGrid.jsx:
+  shown.map((r) => <Card key={r.id} {...r} />)"""
+
+E3_EXAMPLE = """<nav>
+  <a href="#/">Home</a>
+  <a href="#/projects">Projects</a>
+</nav>
+<section data-route="not-found" hidden>
+  <h2>Page not found</h2>
+  <p><a href="#/">Back home</a></p>
+</section>
+<script type="module">
+  const routes = ["#/", "#/projects"];
+  function render() {
+    const hash = location.hash || "#/";
+    document.querySelector('[data-route="not-found"]').hidden = routes.includes(hash);
+  }
+  window.addEventListener("hashchange", render);
+  render();
+</script>"""
+
+E4_EXAMPLE = """<p id="api-error" role="alert" hidden>Could not reach the recipe API.</p>
+<script type="module">
+  try {
+    const res = await fetch("/api/recipes");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const recipes = await res.json();
+  } catch (e) {
+    document.getElementById("api-error").hidden = false;
+  }
+</script>
+
+# .gitignore
+.env"""
+
+E5_EXAMPLE = """<button class="sign-in" hidden>Sign in</button>
+<section data-requires-auth hidden>
+  <h2>Your drafts</h2>
+</section>
+<script type="module">
+  try {
+    const res = await fetch("/api/drafts");
+    if (res.status === 401) {
+      document.querySelector(".sign-in").hidden = false;
+    } else if (res.ok) {
+      document.querySelector("[data-requires-auth]").hidden = false;
+    }
+  } catch (e) {
+    document.querySelector(".sign-in").hidden = false;
+  }
+</script>"""
+
+E6_EXAMPLE = """<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://esm.sh; img-src 'self' https: data:">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+
+Replace the innerHTML line from JavaScript modules and components:
+  const grid = document.querySelector(".gallery, .grid");
+  grid.replaceChildren(...projects.map((p) => {
+    const card = document.createElement("article");
+    card.className = "card";
+    const title = document.createElement("h3");
+    title.className = "card__title";
+    title.textContent = p.title;
+    card.append(title);
+    return card;
+  }));"""
+
+E8_EXAMPLE = """<div id="app-error" role="alert" hidden>Something broke. Reload, or try again in a minute.</div>
+<script type="module">
+  function trackError(e) {
+    navigator.sendBeacon("/api/log", JSON.stringify({ message: String(e) }));
+    document.getElementById("app-error").hidden = false;
+  }
+  window.addEventListener("error", (e) => trackError(e.message));
+  window.addEventListener("unhandledrejection", (e) => trackError(e.reason));
+</script>"""
+
 E1 = L("TypeScript for the web", ["typescript", "types", "interface", "jsdoc", "ts-check", "tsconfig", "strict", "type"], [
+    C("How the Expert level works",
+      "The real app now lives in a project on your computer, built with the Node, npm and Vite you set up in the Advanced level. Every lesson has the same three parts. The page in Prexis grows the parts a browser can show. A code step runs the core logic for real, so you know it works. A worked example walks you through the part that happens in your project, and self checks track it on your honor. If a step feels like a jump, do the worked example in your project first, then come back."),
+    NEED("Node 20 or newer, a terminal and a code editor (VS Code checks TypeScript as you type). Cost: free."),
+    W("Start the Expert project once", "Make a TypeScript and React project you will grow through this level.",
+      ["In a terminal: npm create vite@latest casa-app -- --template react-ts, then cd casa-app and npm install.",
+       "npm run dev prints a local address. Open it, edit src/App.tsx, save, and watch the page update.",
+       "Copy your Workshop page into index.html and your CSS into src/index.css, so both versions match.",
+       "git init, commit, and push it to a new GitHub repo. Every later lesson adds to this project."],
+      "One project, set up once. The rest of the level fills it in.",
+      code="npm create vite@latest casa-app -- --template react-ts\ncd casa-app\nnpm install\nnpm run dev"),
     C("Types catch bugs before the browser does",
       "TypeScript is JavaScript plus type annotations. The compiler checks them and then strips them, so the browser still runs plain JavaScript. You can start without a build step: add // @ts-check to a JS file and describe types in JSDoc comments; VS Code checks them as you type.",
       "// @ts-check\n/** @typedef {{ title: string, tags: string[] }} Project */\n/** @param {Project} p */\nfunction renderCard(p) { return p.title; }"),
@@ -700,9 +913,9 @@ E1 = L("TypeScript for the web", ["typescript", "types", "interface", "jsdoc", "
       "<script type=\"module\">\n  // @ts-check\n  /** @typedef {{ title: string, summary: string }} Project */\n  /** @param {Project} p */\n  const renderCard = (p) => `<article class=\"card\"><h3 class=\"card__title\">${p.title}</h3><p>${p.summary}</p></article>`;\n</script>",
       "Your editor now flags a typo like p.tittle before you ever load the page. The next step is real .ts files with tsconfig strict.",
       [has("script[type=\"module\"]", "A module script"),
-       html("@ts-check", "The script opts in with // @ts-check"),
-       html("@typedef", "A @typedef describes Project"),
-       html("@param", "renderCard has a typed @param")]),
+       html("@ts-check", "The script opts in with // @ts-check", raw=True),
+       html("@typedef", "A @typedef describes Project", raw=True),
+       html("@param", "renderCard has a typed @param", raw=True)]),
     M("Data from fetch has an unknown shape. What is the safe approach?",
       ["Cast it with as Project and move on", "Validate it with a type guard or schema, then use the typed value", "Turn off strict mode", "Use any everywhere"], 1,
       "A cast is a promise you cannot keep. A guard is a check you actually run."),
@@ -713,6 +926,7 @@ E1 = L("TypeScript for the web", ["typescript", "types", "interface", "jsdoc", "
 ])
 
 E2 = L("A component framework", ["react", "framework", "components", "props", "state", "usestate", "keys", "reducer", "jsx"], [
+    NEED("The Vite project from TypeScript for the web, with React (it came with the react-ts template). For the page in Prexis you can also load React from https://esm.sh, a free public CDN, so the exported page runs it with no build. Cost: free."),
     C("Components are functions",
       "A component takes props and returns UI. React, Vue and Svelte all share the idea; React is the most common, so the examples use it. Your renderCard was already a component without the name.",
       "function Card({ title, summary }) {\n  return <article className=\"card\"><h3>{title}</h3><p>{summary}</p></article>;\n}"),
@@ -730,13 +944,15 @@ E2 = L("A component framework", ["react", "framework", "components", "props", "s
        T("reducer({ query: \"\", tags: [\"quick\", \"vegan\"] }, { type: \"toggleTag\", tag: \"quick\" })", {"query": "", "tags": ["vegan"]}),
        T("(() => { const s = { query: \"a\", tags: [] }; reducer(s, { type: \"query\", value: \"b\" }); return s.query; })()", "a")],
       "Return new objects instead of editing old ones. That is how React notices a change."),
-    B("Mark the island your framework will own: a div with id=\"cards-root\" holding three static .card fallbacks, and a module script that uses useState and renders cards with a key.",
-      "<div id=\"cards-root\">\n  <article class=\"card\">...</article>\n  <article class=\"card\">...</article>\n  <article class=\"card\">...</article>\n</div>\n<script type=\"module\">\n  // In your Vite + React project this lives in src/CardGrid.jsx\n  // const [query, setQuery] = useState(\"\");\n  // projects.map((p) => <Card key={p.id} {...p} />)\n</script>",
-      "The static cards keep the page useful before JavaScript loads; React takes over #cards-root when it does.",
+    B("Mark the island your framework will own: a div with id=\"cards-root\" holding three static .card fallbacks, and a module script with a real component that keeps state with useState and gives each card a key. Import React from https://esm.sh so the exported page runs it, as in the example. Comments do not count; the check reads your code.",
+      E2_EXAMPLE,
+      "The static cards keep the page useful before JavaScript loads; React takes over #cards-root when it does. Export it and type in the filter box to watch state at work.",
       [has("#cards-root", "A mount point with id=\"cards-root\""),
        count("#cards-root .card", 3, "Three fallback cards inside it"),
-       html("useState", "The component keeps state with useState"),
-       html("key=", "List items get a key")]),
+       rx(r"\buseState\s*\(", "The component calls useState( in code, not in a comment",
+          hint="Write the component for real, like the example. Lines inside // or /* */ comments are ignored."),
+       rx(r"\bkey\s*[:=]\s*[{\w\"']", "Each rendered card gets a key in code",
+          hint="Pass a key when you map: h(\"article\", { key: r.id }, ...) or <Card key={r.id} /> in JSX.")]),
     O("Order what happens when state changes.",
       ["The visitor types in the search box", "onChange calls setQuery", "React re-runs the component with the new state", "React compares the new output to the old", "Only the changed DOM nodes update"],
       "Event, state update, re-render, diff, patch. You write the first two; React does the rest.",
@@ -761,7 +977,7 @@ E3 = L("Routing and app structure", ["routing", "router", "spa", "routes", "hist
        T("matchRoute(\"/nope\")", {"name": "notFound", "params": {}})],
       "Every router, from a dozen lines to Next.js, is this: turn a URL into a name and some parameters."),
     B("Add hash routes to your page: at least two links whose href starts with #/, a section with data-route=\"not-found\" for unknown URLs, and a script that listens for hashchange.",
-      "<nav>\n  <a href=\"#/\">Home</a>\n  <a href=\"#/projects\">Projects</a>\n</nav>\n<section data-route=\"not-found\" hidden>\n  <h2>Page not found</h2>\n  <p><a href=\"#/\">Back home</a></p>\n</section>\n<script>\n  window.addEventListener(\"hashchange\", render);\n</script>",
+      E3_EXAMPLE,
       "Hash routes work on any static host with no server setup, which makes them a safe first router.",
       [count("a[href^=\"#/\"]", 2, "At least two #/ route links"),
        has("[data-route=\"not-found\"]", "A not-found view"),
@@ -778,13 +994,14 @@ E3 = L("Routing and app structure", ["routing", "router", "spa", "routes", "hist
 ])
 
 E4 = L("Your own API", ["api", "serverless", "functions", "http", "status", "codes", "rest", "env", "secrets", "backend"], [
+    NEED("A free Netlify or Vercel account to run serverless functions (the free tiers cover a small site), and Node to test the function locally with netlify dev or vercel dev. Cost: free."),
     C("An API is a URL that returns data",
       "GET reads, POST creates, PUT or PATCH updates, DELETE removes. Status codes report the result: 200 OK, 201 Created, 400 bad input, 401 not signed in, 404 not found, 405 wrong method, 500 server error."),
     M("Which status code means a new item was created?",
       ["200", "201", "204", "302"], 1,
       "201 Created. 200 is a general success, 204 is success with no body."),
     C("Serverless functions",
-      "Netlify and Vercel run a function file when its URL is requested. No server to manage, and small sites stay on the free tier. On Vercel, api/projects.js answers /api/projects.",
+      "Netlify and Vercel run a function file when its URL is requested. No server to manage, and small sites stay on the free tier. On Vercel, api/recipes.js answers /api/recipes; name the file after your data.",
       "export default function handler(req, res) {\n  if (req.method !== \"GET\") return res.status(405).json({ error: \"Method not allowed\" });\n  res.status(200).json(projects);\n}"),
     K("Write handle(req, projects). For method \"GET\" return { status: 200, body: projects }. For any other method return { status: 405, body: { error: \"Method not allowed\" } }.",
       "function handle(req, projects) {\n  \n}",
@@ -795,12 +1012,16 @@ E4 = L("Your own API", ["api", "serverless", "functions", "http", "status", "cod
       "Pure request in, response out. Keeping the logic in a plain function also makes it easy to test."),
     C("Secrets stay on the server",
       "API keys go in environment variables on the host, read with process.env.NAME inside the function. Anything in your page's JavaScript is public. Commit a .env.example with empty values, and list .env in .gitignore."),
-    B("Point the front end at your API: the page script fetches \"/api/projects\" and keeps an error state with role=\"alert\". Then build the function outside Prexis and confirm it.",
-      "<p class=\"error\" role=\"alert\" hidden>Could not load projects.</p>\n<script type=\"module\">\n  const res = await fetch(\"/api/projects\");\n</script>\n\n# .gitignore\n.env",
-      "Your site now has a backend. The data can change without redeploying the page.",
-      [html("/api/projects", "The page fetches /api/projects"),
-       has("[role=\"alert\"]", "An error state with role=\"alert\""),
-       confirm("api/projects returns 200 for GET and 405 for other methods"),
+    B("Point the front end at your API: a module script that fetches one of your own routes (any /api/ path, such as /api/recipes or /api/projects), and a new message with id=\"api-error\" and role=\"alert\" that the script shows when the request fails. Then build the function outside Prexis and confirm it.",
+      E4_EXAMPLE,
+      "Your site now has a backend. The data can change without redeploying the page. Until the function is deployed, the exported page shows your api-error message, which is the point of having one.",
+      [rx(r"fetch\(\s*[\"'`]/api/[\w-]+", "The page fetches one of your /api/ routes",
+          hint="Name the route after your data, for example fetch(\"/api/recipes\"). Any /api/ path works."),
+       has("#api-error[role=\"alert\"]", "A new #api-error message with role=\"alert\"",
+           hint="The .error from Fetching data does not count; this message is for API failures. Add <p id=\"api-error\" role=\"alert\" hidden>...</p>."),
+       rx(r"getElementById\(\s*[\"']api-error[\"']|querySelector\(\s*[\"']#api-error[\"']", "The script shows #api-error when the request fails",
+          hint="In your catch, set document.getElementById(\"api-error\").hidden = false."),
+       confirm("My api function returns 200 for GET and 405 for other methods"),
        confirm(".env is in .gitignore and the function reads process.env")]),
     O("Order a request from click to cards.",
       ["The visitor clicks Load projects", "The browser sends GET /api/projects", "The host runs your function", "The function returns JSON with status 200", "The page renders the cards"],
@@ -809,6 +1030,7 @@ E4 = L("Your own API", ["api", "serverless", "functions", "http", "status", "cod
 ])
 
 E5 = L("Databases and sign in", ["database", "sql", "postgres", "supabase", "auth", "sign", "login", "session", "authorization", "tables"], [
+    NEED("A free Supabase or Neon account for the database, and an auth provider (Supabase Auth, Clerk or Auth.js all have free tiers). Cost: free for a small project; paid plans start when you have real traffic."),
     C("Tables, rows, and when hosted is enough",
       "A table is a list of rows with fixed columns: projects(id, title, owner_id). Hosted Postgres from Supabase or Neon gives you a real database with a free tier and nothing to maintain. Your API function reads from it instead of data.json."),
     C("Sign in without storing passwords",
@@ -825,11 +1047,12 @@ E5 = L("Databases and sign in", ["database", "sql", "postgres", "supabase", "aut
        T("canEdit(null, { ownerId: 1 })", False)],
       "Signed out is false first. Then ownership, then roles. Run it on the server for every write."),
     B("Add sign in to the page: a button with class sign-in, an element marked data-requires-auth for content only signed-in users see, and code that handles a 401 response.",
-      "<button class=\"sign-in\">Sign in</button>\n<section data-requires-auth hidden>\n  <h2>Your drafts</h2>\n</section>\n<script type=\"module\">\n  const res = await fetch(\"/api/drafts\");\n  if (res.status === 401) showSignIn();\n</script>",
+      E5_EXAMPLE,
       "The page shows what a visitor may see, and the server enforces it.",
       [has("button.sign-in", "A sign-in button"),
        has("[data-requires-auth]", "A section marked data-requires-auth"),
-       html("401", "The script handles a 401 response")]),
+       rx(r"\.status\s*(===?|!==?)\s*401\b|\b401\s*(===?|!==?)\s*[\w.]*status\b|\bcase\s+401\b", "The script checks the response for status 401",
+          hint="Compare the response status, for example: if (res.status === 401) { show the sign-in button }.")]),
     O("Order the sign in flow.",
       ["The visitor presses Sign in", "The app redirects to the auth provider", "The visitor proves who they are", "The provider redirects back with a code", "The server swaps the code for a session cookie", "API calls now carry the session"],
       "This is the OAuth shape almost every sign in button uses.",
@@ -854,12 +1077,20 @@ E6 = L("Security for web developers", ["security", "xss", "csrf", "injection", "
       "Ampersand first, or you would double-escape the entities you just made."),
     C("Headers that defend you",
       "Content-Security-Policy lists where scripts, styles and images may come from, so injected script is blocked. X-Content-Type-Options: nosniff and a Referrer-Policy close smaller holes. Set them in netlify.toml or vercel.json; a meta tag can carry CSP too."),
-    B("Harden the page: a meta Content-Security-Policy with a default-src, a meta referrer policy, and no innerHTML anywhere in your page code (switch to textContent or escapeHtml). Then set the headers on your host.",
-      "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'\">\n<meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">",
-      "Export puts these meta tags in the head where browsers enforce them. The policy allows your inline style and scripts; tighten script-src with nonces once you have a build.",
+    C("A policy that does not lock you out",
+      "default-src 'self' on its own blocks every inline style tag and inline script, and every image from another site. Your exported page is exactly that: one file with an inline style, inline scripts, picsum images and React from esm.sh. So name each kind: style-src and script-src with 'self' and 'unsafe-inline', script-src with any host you import from, and img-src with https: and data:. Once you have a build step, replace 'unsafe-inline' in script-src with nonces or hashes."),
+    B("Harden the page: a meta Content-Security-Policy with default-src plus style-src, script-src and img-src that still allow your own page (its inline style and scripts, your image hosts, and https://esm.sh if you import React from it), a meta referrer policy, and no innerHTML anywhere in your page code. The innerHTML from JavaScript modules and components counts: rebuild those cards with createElement and textContent, as the example shows. Then set the headers on your host.",
+      E6_EXAMPLE,
+      "Export puts these meta tags in the head where browsers enforce them. Your policy allows your own inline style and scripts and nothing you did not name; tighten script-src with nonces once you have a build.",
       [attr("meta[http-equiv=\"Content-Security-Policy\"]", "content", "A CSP meta tag with default-src", contains="default-src"),
+       attr("meta[http-equiv=\"Content-Security-Policy\"]", "content", "The policy sets style-src", contains="style-src"),
+       attr("meta[http-equiv=\"Content-Security-Policy\"]", "content", "The policy sets script-src", contains="script-src"),
+       attr("meta[http-equiv=\"Content-Security-Policy\"]", "content", "The policy sets img-src", contains="img-src"),
+       csp_ok("The policy still lets your own styles, scripts and images load",
+              hint="The lines below say what your policy would block in the exported site. The Workshop shows the same list next to Export my site."),
        attr("meta[name=\"referrer\"]", "content", "A referrer policy"),
-       html("innerHTML", "No innerHTML in your page code", negate=True),
+       html("innerHTML", "No innerHTML in your page code", negate=True,
+            hint="Look in the module script from JavaScript modules and components: replace the .innerHTML = line with replaceChildren and createElement, as the example shows."),
        confirm("My host config sends X-Content-Type-Options: nosniff")]),
     O("Respond to a leaked API key.",
       ["Revoke the key at the provider", "Create a new key", "Update the environment variable on the host", "Redeploy", "Review the provider's logs for misuse"],
@@ -870,6 +1101,7 @@ E6 = L("Security for web developers", ["security", "xss", "csrf", "injection", "
 ])
 
 E7 = L("Testing at depth", ["testing", "tests", "unit", "e2e", "playwright", "vitest", "flaky", "tdd", "ci"], [
+    NEED("Vitest and Playwright, both free from npm. Playwright downloads its own browsers the first time, about 300 MB. Your CI from Checks that run themselves runs them. Cost: free."),
     C("Three kinds of tests",
       "Unit tests check one function, fast. Integration tests check pieces together, like an API with its database. End to end tests drive a real browser through a real flow, like signing in. Many unit tests, a few end to end tests."),
     M("Which test type catches a broken sign in flow?",
@@ -904,6 +1136,7 @@ E7 = L("Testing at depth", ["testing", "tests", "unit", "e2e", "playwright", "vi
 ])
 
 E8 = L("Running in production", ["production", "monitoring", "logs", "errors", "uptime", "health", "rollback", "incident", "analytics"], [
+    NEED("Optional: a free Sentry account for error tracking and a free uptime checker such as UptimeRobot or Better Stack. The lesson works without them; you send errors to your own /api/log. Cost: free."),
     C("Know before your users tell you",
       "Logs show what your functions did. Error tracking (Sentry and similar) collects browser and server errors with stack traces. An uptime check hits a URL every minute. Privacy friendly analytics (Plausible, Fathom) show traffic without tracking people."),
     M("Users report a blank page. Which tool tells you the actual error?",
@@ -916,12 +1149,14 @@ E8 = L("Running in production", ["production", "monitoring", "logs", "errors", "
        T("health({ db: true, auth: false })", {"status": 503, "body": {"ok": False, "failing": ["auth"]}}),
        T("health({})", {"status": 200, "body": {"ok": True}})],
       "An uptime check pointed at /api/health now tells you which dependency broke, not just that something did."),
-    B("Catch errors on the page: an element with id=\"app-error\" and role=\"alert\" as a friendly fallback, and a script that listens for unhandledrejection and sends errors to a reportError( function.",
-      "<div id=\"app-error\" role=\"alert\" hidden>Something broke. Reload, or try again in a minute.</div>\n<script>\n  function reportError(e) { navigator.sendBeacon(\"/api/log\", JSON.stringify({ message: String(e) })); }\n  window.addEventListener(\"error\", (e) => reportError(e.message));\n  window.addEventListener(\"unhandledrejection\", (e) => reportError(e.reason));\n</script>",
+    B("Catch errors on the page: an element with id=\"app-error\" and role=\"alert\" as a friendly fallback, and a module script that listens for unhandledrejection and sends errors to a trackError( function. Do not call it reportError: browsers already have a built-in window.reportError, and a function with that name replaces it.",
+      E8_EXAMPLE,
       "Visitors see a calm message instead of a blank page, and you get the error.",
       [has("#app-error[role=\"alert\"]", "A friendly error region with role=\"alert\""),
        html("unhandledrejection", "The script catches unhandled promise rejections"),
-       html("reportError(", "Errors go to a reportError( function")]),
+       html("trackError(", "Errors go to a trackError( function"),
+       rx(r"function\s+reportError\b|(const|let|var)\s+reportError\b", "Nothing replaces the browser's built-in reportError", negate=True,
+          hint="Rename your function to trackError so window.reportError keeps working.")]),
     C("Rollbacks and flags",
       "Netlify and Vercel keep every deploy. Rolling back is one click on an older one, and it takes seconds. Feature flags let you ship code turned off, then turn it on for a few users first."),
     O("Order an incident.",
@@ -934,6 +1169,7 @@ E8 = L("Running in production", ["production", "monitoring", "logs", "errors", "
 ])
 
 E9 = L("Working like a pro: reviews, docs, and open source", ["review", "pull", "request", "docs", "readme", "contributing", "open", "source", "semver", "changelog", "capstone"], [
+    NEED("Your app's GitHub repo and its live deploy from the earlier lessons. Contributing to someone else's project needs only your GitHub account. Cost: free."),
     C("Pull request habits",
       "Small changes, one idea each. A title that says what changed, a description that says why, and screenshots for anything visual. A reviewer should understand it in five minutes."),
     C("Giving and getting review",
@@ -957,18 +1193,19 @@ E9 = L("Working like a pro: reviews, docs, and open source", ["review", "pull", 
        has("[data-testid=\"search\"]", "A testable search input"),
        has("[data-route=\"not-found\"]", "A not-found route"),
        has("meta[http-equiv=\"Content-Security-Policy\"]", "A Content-Security-Policy"),
+       csp_ok("The policy still lets your own page load"),
        has("#app-error[role=\"alert\"]", "An error fallback"),
        html("/api/health", "A link to /api/health"),
        has("footer a[href*=\"github.com\"]", "A footer link to the repo"),
        confirm("TypeScript strict, unit tests and end to end tests run in CI"),
        confirm("README covers setup, deploy and rollback; CONTRIBUTING.md, a PR template and a LICENSE exist"),
-       url("appUrl", "Your live app URL")]),
+       url("appUrl", "Your live app address", kind="site")]),
 ])
 
 COURSES = [
     {
         "id": "web-intermediate", "subject": "Web development", "level": "Intermediate",
-        "title": "Websites you run", "track": "web", "prereq": "web-pages",
+        "title": "Websites you run", "track": "web", "prereq": "web-pages", "rev": "2026-09-30",
         "unlock": {"after": "web-pages", "mastery": 55, "skill": "HTML & CSS"},
         "blurb": "Ship it live, multi page sites, forms, SEO, motion, images, JavaScript, Git.",
         "units": [
@@ -979,7 +1216,7 @@ COURSES = [
     },
     {
         "id": "web-advanced", "subject": "Web apps", "level": "Advanced",
-        "title": "Web apps with real tools", "track": "web", "prereq": "web-intermediate",
+        "title": "Web apps with real tools", "track": "web", "prereq": "web-intermediate", "rev": "2026-09-30",
         "unlock": {"after": "web-intermediate", "mastery": 85, "skill": "Web development"},
         "blurb": "Modern CSS, modules, fetch, Vite, deploy from Git, your own domain, speed, accessibility, CI.",
         "units": [
@@ -990,7 +1227,7 @@ COURSES = [
     },
     {
         "id": "web-expert", "subject": "Web engineering", "level": "Expert",
-        "title": "Shipping real web apps", "track": "web", "prereq": "web-advanced",
+        "title": "Shipping real web apps", "track": "web", "prereq": "web-advanced", "rev": "2026-09-30",
         "unlock": {"after": "web-advanced", "mastery": 85, "skill": "Web apps"},
         "blurb": "TypeScript, components, routing, APIs, databases and sign in, security, testing, production.",
         "units": [
