@@ -53,6 +53,8 @@ Every Beginner subject now climbs to Intermediate, Advanced and Expert, nine les
 
 - **JavaScript, by hand** continues with **JavaScript that holds up** (Intermediate), **JavaScript under the hood** (Advanced) and **JavaScript engineering** (Expert). Code steps are graded by real tests.
 - **Websites that work** continues with **Websites people use**, **Design with evidence** and **Design systems and strategy**. Build steps measure the rendered page, including text contrast, sizes and spacing; research and strategy work uses write steps.
+- **Found on Google** continues with **SEO you can ship**, **Technical SEO in depth** and **Search strategy at scale**. Build steps add real head tags, headings, links, images, hreflang and JSON-LD to the Workshop site (JSON-LD is parsed and checked for its type and keys); robots files, sitemaps, redirect maps and strategy memos are write steps.
+- **Writing that works** continues with **Writing people act on**, **Writing that persuades** and **Writing with authority**. Every lesson has write steps: rewrite a draft or write from a brief, checked for length, sentence length, required and banned phrases, with a model answer.
 
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions. Typing a topic checks the library first, preferring lessons at your level; Studio AI is optional and secondary.
 
