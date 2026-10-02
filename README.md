@@ -47,6 +47,13 @@ After **Web pages from scratch** (Beginner), the web track keeps going on the sa
 
 Each level unlocks when you finish the course before it, or reach the mastery line in that subject (55% for Intermediate, 85% for Advanced and Expert). The last lesson of each level ends with a capstone build. Work done outside Prexis (deploys, Git, DNS, config files) is checked with a self check and a pasted link. Self checks are marked as such, and pasted links are checked for the right kind of address (a live site, a GitHub repo, a CI run, a custom domain), not visited. Lessons that need an outside account, an install or money open with a short "what you need" card. The Workshop's **Export my site** button downloads your page as one index.html ready for GitHub Pages, Netlify or Vercel, and warns before you export if your Content-Security-Policy would block your own styles, scripts or images, or if the page asks for files the export cannot include.
 
+### Ladders for every subject
+
+Every Beginner subject now climbs to Intermediate, Advanced and Expert, nine lessons per level in three units, each level ending with a capstone. Gating matches the web ladder: finish the level before, or reach its mastery line (55% for Intermediate, 85% above). The level filters on the home screen and the level you pick for a quick lesson both follow the ladder, so a topic asked at Advanced opens the Advanced course of the same subject (or explains what unlocks it).
+
+- **JavaScript, by hand** continues with **JavaScript that holds up** (Intermediate), **JavaScript under the hood** (Advanced) and **JavaScript engineering** (Expert). Code steps are graded by real tests.
+- **Websites that work** continues with **Websites people use**, **Design with evidence** and **Design systems and strategy**. Build steps measure the rendered page, including text contrast, sizes and spacing; research and strategy work uses write steps.
+
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions. Typing a topic checks the library first, preferring lessons at your level; Studio AI is optional and secondary.
 
 ## The intelligence
@@ -72,7 +79,7 @@ All progress, preferences, mastery and the review deck persist locally. Sharing 
 
 ## Step types
 
-`concept` · `worked` · `mcq` · `numeric` · `order` · `output` (predict what code prints, and it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve) · `build` (grow My Site, graded from the rendered page)
+`concept` · `worked` · `mcq` · `numeric` · `order` · `output` (predict what code prints, and it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve) · `build` (grow My Site, graded from the rendered page, including measured contrast, sizes and element counts) · `write` (free text practice checked for length, sentence length, required and banned phrases, a real rewrite of the draft, and self checks, with a model answer)
 
 ## Agents
 

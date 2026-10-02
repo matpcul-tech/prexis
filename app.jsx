@@ -508,6 +508,58 @@ const visuallyHidden = (el, win) => {
 /* doc/win: the rendered preview (for computed styles and visibility).
    extra.src: the parsed source page (for selectors), so tags the preview
    strips, like script and link, still count. */
+/* WCAG contrast of an element's text against the first solid background
+   behind it (white when none is set). Semi-transparent colors are blended. */
+const parseRgb = (v) => {
+  const m = /rgba?\(([^)]+)\)/.exec(String(v || ""));
+  if (!m) return null;
+  const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(Number);
+  return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+};
+const lumOf = ({ r, g, b }) => {
+  const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+};
+const blend = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
+const contrastOf = (el, win) => {
+  const layers = [];
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    const bg = parseRgb(win.getComputedStyle(n).backgroundColor);
+    if (bg && bg.a > 0) { layers.push(bg); if (bg.a >= 1) break; }
+  }
+  let under = { r: 255, g: 255, b: 255, a: 1 };
+  for (let i = layers.length - 1; i >= 0; i--) under = blend(layers[i], under);
+  let fg = parseRgb(win.getComputedStyle(el).color) || { r: 0, g: 0, b: 0, a: 1 };
+  if (fg.a < 1) fg = blend(fg, under);
+  const a = lumOf(fg), b = lumOf(under);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+};
+
+/* Write steps: free text graded by plain checks (word range, patterns
+   that must or must not appear, sentence length, line count, a real
+   rewrite of the draft) plus self checks the learner ticks. */
+const wordsIn = (t) => String(t || "").trim().split(/\s+/).filter(Boolean).length;
+const normText = (t) => String(t || "").toLowerCase().replace(/\s+/g, " ").trim();
+const runWriteChecks = (text, checks, starter, self) =>
+  (checks || []).map((c, i) => {
+    try {
+      const t = String(text || "");
+      if (c.confirm) return { label: c.label, pass: !!(self && self[i]) };
+      if (c.words) { const n = wordsIn(t); return { label: c.label, pass: n >= c.words[0] && n <= c.words[1] }; }
+      if (c.has) return { label: c.label, pass: new RegExp(c.has, c.flags || "").test(t) };
+      if (c.not) return { label: c.label, pass: t.trim().length > 0 && !new RegExp(c.not, c.flags || "").test(t) };
+      if (c.maxSentence) {
+        const parts = t.split(/[.!?]+(?=\s|$)|\n+/).map((x) => x.trim()).filter(Boolean);
+        return { label: c.label, pass: parts.length > 0 && parts.every((x) => wordsIn(x) <= c.maxSentence) };
+      }
+      if (c.lines) return { label: c.label, pass: t.split("\n").filter((x) => x.trim()).length >= c.lines };
+      if (c.changed) return { label: c.label, pass: t.trim().length > 0 && normText(t) !== normText(starter) };
+      return { label: c.label, pass: false };
+    } catch (e) {
+      return { label: c.label, pass: false };
+    }
+  });
+
 const runBuildChecks = (doc, win, checks, cssText, extra) =>
   (checks || []).map((c, i) => {
     try {
@@ -535,7 +587,7 @@ const runBuildChecks = (doc, win, checks, cssText, extra) =>
         const has = !!cspPolicyOf(x.html);
         return { label: c.label, pass: has && cspIssues({ html: x.html, css: cssText }).length === 0 };
       }
-      const rendered = c.style || c.invisible;
+      const rendered = c.style || c.invisible || c.contrastMin;
       const root = rendered || !x.src ? doc : x.src;
       const els = Array.from(root.body.querySelectorAll(c.sel));
       let pass = false;
@@ -545,14 +597,19 @@ const runBuildChecks = (doc, win, checks, cssText, extra) =>
       else if (c.count) pass = els.length >= c.count;
       else if (c.attr && c.every) pass = els.length > 0 && els.every((el) => { const v = (el.getAttribute(c.attr) || "").trim(); return c.match ? new RegExp(c.match, "i").test(v) : v.length > 0; });
       else if (c.attr) pass = els.some((el) => { const v = el.getAttribute(c.attr) || ""; if (c.match) return new RegExp(c.match, "i").test(v.trim()); return c.contains ? v.includes(c.contains) : v.trim().length > 0; });
-      else if (c.style) pass = els.some((el) => {
+      else if (c.style) pass = els.length > 0 && els[c.every ? "every" : "some"]((el) => {
         const v = win.getComputedStyle(el)[c.style];
         if (c.equals) return v === c.equals;
+        if (c.minPx != null && c.maxPx != null) return parseFloat(v) >= c.minPx && parseFloat(v) <= c.maxPx;
         if (c.minPx != null) return parseFloat(v) >= c.minPx;
+        if (c.maxPx != null) return parseFloat(v) <= c.maxPx;
         if (c.not) return v !== c.not;
         return false;
       });
       else if (c.textMin) pass = els.some((el) => (el.textContent || "").trim().length >= c.textMin);
+      else if (c.textMax) pass = els.length > 0 && els.every((el) => { const n = (el.textContent || "").trim().length; return n > 0 && n <= c.textMax; });
+      else if (c.max != null) pass = els.length >= (c.min || 0) && els.length <= c.max;
+      else if (c.contrastMin) pass = els.length > 0 && els.every((el) => contrastOf(el, win) >= c.contrastMin);
       return { label: c.label, pass };
     } catch (e) {
       return { label: c.label, pass: false };
@@ -1410,6 +1467,8 @@ function Prexis() {
   const buildFrameRef = useRef(null);
   const [buildResults, setBuildResults] = useState(null);
   const [selfChecks, setSelfChecks] = useState({});
+  const [writeText, setWriteText] = useState("");
+  const [writeResults, setWriteResults] = useState(null);
   const genAbortRef = useRef(null);
   const [cancelledKey, setCancelledKey] = useState(null);
   const [expandedId, setExpandedId] = useState("core-js");
@@ -1734,6 +1793,8 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setRetries(0);
     setBuildResults(null);
     setSelfChecks({});
+    setWriteText(s && s.type === "write" ? s.starter || "" : "");
+    setWriteResults(null);
     setRevealed(false);
     setElim([]);
     setRevealN(0);
@@ -1853,7 +1914,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     // Without a key any decent match serves; with a key only a full match
     // short-circuits, so specific asks still get a custom AI lesson.
     const match = findLocalLesson(chosen, lvl, lockedId);
-    const routed = routeWebLevel(findLocalLesson(chosen, lvl), chosen, lvl);
+    const routed = routeLevel(findLocalLesson(chosen, lvl), chosen, lvl);
     if (routed) {
       if (!routed.locked) { if (launchFromLibrary(routed.courseId, routed.u, routed.l, chosen)) return; }
       else if (levelTouched) { setErr(routed.locked); return; }
@@ -2234,7 +2295,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
   };
 
   const step = lesson ? lesson.steps[idx] : null;
-  const gradedTypes = ["mcq", "numeric", "order", "output", "code", "build"];
+  const gradedTypes = ["mcq", "numeric", "order", "output", "code", "build", "write"];
   const isGraded = step && gradedTypes.includes(step.type);
   const sharedControls = step && ["mcq", "numeric", "order", "output"].includes(step.type);
 
@@ -2272,6 +2333,36 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
       feedback("wrong");
       setRetries((r) => r + 1);
     }
+  };
+
+  const checkWrite = () => {
+    const res = runWriteChecks(writeText, step.checks, step.starter || "", selfChecks);
+    setWriteResults(res);
+    const ok = res.length > 0 && res.every((r) => r.pass);
+    if (ok) {
+      feedback("right");
+      setChecked(true);
+      setCorrect(true);
+      setMark(idx, "right");
+      recordHints(idx);
+      setSTotal((x) => x + 1);
+      const g = stepGain();
+      setLastGain(g);
+      recordGain(idx, g);
+      setSXp((x) => x + g);
+      setSRight((x) => x + 1);
+    } else {
+      feedback("wrong");
+      setRetries((r) => r + 1);
+    }
+  };
+  const giveUpWrite = () => {
+    feedback("wrong");
+    setHintN(1);
+    setCorrect(false);
+    setChecked(true);
+    setMark(idx, "wrong");
+    setSTotal((x) => x + 1);
   };
 
   const check = () => {
@@ -2548,14 +2639,28 @@ Respond with ONLY valid JSON: {"note":"..."}`,
   };
   const lockedId = (id) => !!lockOf(library.courses.find((c) => c.id === id) || CONTENT.courses.find((c) => c.id === id));
 
-  /* Quick lessons on web topics: the level you pick decides which rung of
-     the web ladder teaches it, instead of always landing in Beginner. */
-  const routeWebLevel = (match, chosen, lvl) => {
+  /* Quick lessons: the level you pick decides which rung of the matched
+     subject's ladder teaches it, instead of always landing in Beginner.
+     A ladder is the chain of unlock.after links down to its Beginner course. */
+  const ladderRoot = (c, seen) => {
+    const after = c && c.unlock && c.unlock.after;
+    if (!after || (seen && seen.has(c.id))) return c ? c.id : null;
+    const prev = CONTENT.courses.find((x) => x.id === after);
+    return prev ? ladderRoot(prev, new Set([...(seen || []), c.id])) : c.id;
+  };
+  const routeLevel = (match, chosen, lvl) => {
     if (!match || match.score < 0.34) return null;
     const from = CONTENT.courses.find((c) => c.id === match.courseId);
-    if (!from || from.track !== "web") return null;
-    if ((from.level || "Beginner") === lvl) return null;
-    const ids = CONTENT.courses.filter((c) => c.track === "web" && (c.level || "Beginner") === lvl).map((c) => c.id);
+    if (!from) return null;
+    if ((from.level || "Beginner") === lvl) {
+      // Already the right rung. Beginner keeps the old path; a higher rung
+      // still has to respect its lock.
+      if (!from.unlock) return null;
+      const lk = lockOf(library.courses.find((c) => c.id === from.id) || from);
+      return { courseId: from.id, u: match.u, l: match.l, locked: lk ? from.title + " is " + lk.msg.charAt(0).toLowerCase() + lk.msg.slice(1) : null };
+    }
+    const root = ladderRoot(from);
+    const ids = CONTENT.courses.filter((c) => ladderRoot(c) === root && (c.level || "Beginner") === lvl).map((c) => c.id);
     if (!ids.length) return null;
     const tw = tokensOf(chosen);
     let best = null, bestHit = -1;
@@ -3059,8 +3164,8 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                           <div className="card" style={{ marginTop: 6, padding: "10px 12px", boxShadow: "none" }}>
                             <p className="mono" style={{ margin: 0, fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em" }}>
                               {l.steps.length} STEPS · ~{Math.max(2, Math.round(l.steps.length * 0.7))} MIN
-                              {l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build"].includes(st.type)).length > 0
-                                ? " · " + l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build"].includes(st.type)).length + " GRADED"
+                              {l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build", "write"].includes(st.type)).length > 0
+                                ? " · " + l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build", "write"].includes(st.type)).length + " GRADED"
                                 : ""}
                               {score ? " · LAST " + score : ""}
                             </p>
@@ -3269,6 +3374,80 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       <p className="mono" style={{ fontSize: 11, color: "var(--margin)", marginTop: 8, lineHeight: 1.5 }}>
                         NOT YET. Fix the ✗ rows and check again. A pass is still worth {Math.max(3, 15 - 5 * hintN - 5 * retries)} XP.
                       </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step.type === "write" && (
+              <div>
+                <p className="kicker" style={{ marginTop: 4 }}>WRITE · PRACTICE</p>
+                <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
+                {step.starter ? (
+                  <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "10px 0 0", letterSpacing: ".06em" }}>THE DRAFT IS IN THE BOX. EDIT IT IN PLACE.</p>
+                ) : null}
+                <textarea
+                  value={writeText}
+                  onChange={(e) => setWriteText(e.target.value)}
+                  disabled={checked}
+                  aria-label="Your writing"
+                  spellCheck
+                  rows={8}
+                  placeholder="Write here"
+                  style={{ marginTop: 12, width: "100%", minHeight: 170, resize: "vertical", background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 6, padding: "12px 14px", fontSize: 16, lineHeight: 1.55, fontFamily: "inherit", color: "var(--ink)" }}
+                />
+                <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>{wordsIn(writeText)} WORDS</p>
+                <div style={{ marginTop: 10 }}>
+                  {(step.checks || []).map((c, i) => {
+                    const r = writeResults && writeResults[i];
+                    if (c.confirm) return (
+                      <label key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8, fontSize: 14, lineHeight: 1.45, color: r && !r.pass ? "var(--margin)" : "inherit" }}>
+                        <input type="checkbox" checked={!!selfChecks[i]} disabled={checked} onChange={(e) => setSelfChecks((m) => ({ ...m, [i]: e.target.checked }))} style={{ marginTop: 3 }} />
+                        <span><span className="mono" style={{ fontSize: 10.5, color: "var(--pencil)", letterSpacing: ".06em" }}>SELF CHECK · </span>{c.label}</span>
+                      </label>
+                    );
+                    return (
+                      <div key={i}>
+                        <p className="mono" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5, color: r ? (r.pass ? "var(--pen)" : "var(--margin)") : "var(--pencil)" }}>
+                          {r ? (r.pass ? "✓ " : "✗ ") : "○ "}{c.label}
+                        </p>
+                        {r && !r.pass && c.hint ? <p style={{ fontSize: 12.5, margin: "2px 0 0 18px", lineHeight: 1.45, color: "var(--pencil)" }}>{c.hint}</p> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                {hintN > 0 && step.example && (
+                  <div className="hintbox" style={{ marginTop: 12 }}>
+                    <p className="kicker" style={{ margin: "0 0 6px" }}>ONE GOOD ANSWER</p>
+                    <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{step.example}</p>
+                  </div>
+                )}
+                {checked ? (
+                  <div>
+                    <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 6, background: "var(--paper-2)", border: "1.5px solid " + (correct ? "var(--pen)" : "var(--margin)") }}>
+                      <p className="mono" style={{ fontSize: 13, fontWeight: 600, color: correct ? "var(--pen)" : "var(--margin)" }}>
+                        {correct ? <span>✓ WRITTEN AND CHECKED<span className="hi" style={{ marginLeft: 8, padding: "1px 6px" }}>+{lastGain} XP</span></span> : "MODEL ANSWER SHOWN. COMPARE IT WITH YOURS."}
+                      </p>
+                      <p style={{ marginTop: 6, fontSize: 14, lineHeight: 1.55 }}>{step.explain}</p>
+                    </div>
+                    <button onClick={advance} className="primary" style={{ marginTop: 14 }}>{idx + 1 >= lesson.steps.length ? "Finish" : "Continue"}</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                      <button onClick={checkWrite} className="primary" style={{ flex: 1 }}>Check my writing</button>
+                      {step.example && hintN === 0 && (
+                        <button onClick={() => setHintN(1)} className="ghost" style={{ padding: "10px 12px" }}>SHOW AN EXAMPLE (−5 XP)</button>
+                      )}
+                    </div>
+                    {writeResults && (
+                      <p className="mono" style={{ fontSize: 11, color: "var(--margin)", marginTop: 8, lineHeight: 1.5 }}>
+                        NOT YET. Fix the ✗ rows and check again. A pass is still worth {Math.max(3, 15 - 5 * hintN - 5 * retries)} XP.
+                      </p>
+                    )}
+                    {retries >= 2 && (
+                      <button onClick={giveUpWrite} className="ghost" style={{ marginTop: 8, padding: "8px 12px" }}>STUCK? SEE A MODEL ANSWER AND MOVE ON (0 XP)</button>
                     )}
                   </div>
                 )}
@@ -3533,7 +3712,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <div style={{ marginTop: 26, textAlign: "left", maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
                 <p className="kicker">XP LEDGER</p>
                 {lesson.steps.map((s, i) => {
-                  if (!["mcq", "numeric", "order", "output", "code", "build"].includes(s.type)) return null;
+                  if (!["mcq", "numeric", "order", "output", "code", "build", "write"].includes(s.type)) return null;
                   const m = marks[i];
                   const assists = hintMarks[i] || 0;
                   const label = (s.prompt || s.heading || s.type).slice(0, 36);

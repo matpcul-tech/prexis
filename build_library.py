@@ -23,6 +23,12 @@ picks = []
 from extra_web import add as add_web
 add_web(courses, picks)
 
+# Subject ladders (Intermediate, Advanced, Expert) for the other Beginner
+# courses. Each module adds three courses gated on the one before.
+import importlib
+for mod in ["extra_js", "extra_design"]:
+    importlib.import_module(mod).add(courses, picks)
+
 overlay = {
     "core-js": {"track": "code", "blurb": "Bindings, lists, errors, async, objects, closures, reduce, copies."},
     "web-pages": {"track": "web", "blurb": "HTML, CSS, box model, flex, grid, accessibility."},
