@@ -609,6 +609,13 @@ const runBuildChecks = (doc, win, checks, cssText, extra) =>
       else if (c.textMin) pass = els.some((el) => (el.textContent || "").trim().length >= c.textMin);
       else if (c.textMax) pass = els.length > 0 && els.every((el) => { const n = (el.textContent || "").trim().length; return n > 0 && n <= c.textMax; });
       else if (c.max != null) pass = els.length >= (c.min || 0) && els.length <= c.max;
+      else if (c.wordsMin) pass = els.length > 0 && els.every((el) => wordsIn(el.textContent) >= c.wordsMin);
+      else if (c.textNot) pass = els.length > 0 && els.every((el) => !new RegExp(c.textNot, "i").test((el.textContent || "").trim()));
+      else if (c.jsonKeys) pass = els.length > 0 && els.every((el) => {
+        // JSON-LD: every block parses and carries the keys (and @type) asked for
+        const o = JSON.parse(el.textContent || "");
+        return !!o && typeof o === "object" && c.jsonKeys.every((k) => k in o) && (!c.jsonType || String(o["@type"]) === c.jsonType);
+      });
       else if (c.contrastMin) pass = els.length > 0 && els.every((el) => contrastOf(el, win) >= c.contrastMin);
       return { label: c.label, pass };
     } catch (e) {
@@ -3381,7 +3388,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             )}
 
             {step.type === "write" && (
-              <div>
+              <div style={{ overflowWrap: "anywhere" }}>
                 <p className="kicker" style={{ marginTop: 4 }}>WRITE · PRACTICE</p>
                 <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
                 {step.starter ? (
