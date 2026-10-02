@@ -21,7 +21,7 @@ Open http://localhost:8765/. The player (`app.jsx`) and `content_extra.js` are c
 
 ## Rules
 
-- New lessons use existing step types only (concept, worked, mcq, numeric, order, output, code, explore, build)
+- New lessons use existing step types only (concept, worked, mcq, numeric, order, output, code, explore, build, write). Ladder courses are generated from extra_*.py modules through ladder_kit.py; rebuild with python3 build_library.py
 - JS output/code steps must run in the sandbox
 - Prefer expanding extra_*.py over the AI generator
 - Voice: short, specific, no cheerleading. No em or en dashes anywhere; see CLAUDE.md.
