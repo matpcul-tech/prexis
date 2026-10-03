@@ -12,7 +12,8 @@ Open http://localhost:8765/. The player (`app.jsx`) and `content_extra.js` are c
 
 ## Layout
 
-- `index.html`: shell; loads `content.js`, then `content_extra.js`, then `app.jsx` (order matters)
+- `index.html`: shell; loads `content.js`, then `content_extra.js`, then `master.js`, then `app.jsx` (order matters)
+- `master.js`: Master level, endless practice and project generators plus the SM-2 scheduler (`window.PREXIS_MASTER`). Plain JavaScript, hand-edited, no build. Every generated answer must be computed by its generator.
 - `app.jsx`: the player. Edit it directly.
 - `content.js`: original 67 lessons
 - `content_extra.js`: extra tracks plus course metadata overlay. Regenerate with `python3 build_library.py` after editing `extra_*.py`; do not hand-edit both.

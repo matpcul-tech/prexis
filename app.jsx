@@ -7,6 +7,8 @@ const PREFS_KEY = "prexis-prefs-v1";
 const PROJECT_KEY = "prexis-project-v1";
 const SKILLS_KEY = "prexis-skills-v1";
 const DECK_KEY = "prexis-deck-v1";
+const SCHED_KEY = "prexis-sched-v1"; // spaced review schedule per finished lesson (SM-2)
+const PSEEN_KEY = "prexis-practice-seen-v1"; // hashes of generated practice already served
 const KEY_KEY = "prexis-xai-key";
 const MODEL_KEY = "prexis-xai-model";
 const PROVIDER_KEY = "prexis-provider";
@@ -35,7 +37,7 @@ const TRACKS = [
   { id: "writing", label: "Writing" },
   { id: "money", label: "Money" },
 ];
-const LEVEL_RANK = { Beginner: 1, Intermediate: 2, Advanced: 3, Expert: 4 };
+const LEVEL_RANK = { Beginner: 1, Intermediate: 2, Advanced: 3, Expert: 4, Master: 5 };
 const LEVELS = ["Beginner", "Intermediate", "Advanced", "Expert"];
 
 const SKINS = [
@@ -545,6 +547,8 @@ const runWriteChecks = (text, checks, starter, self) =>
     try {
       const t = String(text || "");
       if (c.confirm) return { label: c.label, pass: !!(self && self[i]) };
+      // generated content adds chars (length), dom (parsed HTML) and json checks
+      if (MASTER && (c.chars || c.dom || c.json)) return { label: c.label, pass: !!MASTER.extraCheck(t, c) };
       if (c.words) { const n = wordsIn(t); return { label: c.label, pass: n >= c.words[0] && n <= c.words[1] }; }
       if (c.has) return { label: c.label, pass: new RegExp(c.has, c.flags || "").test(t) };
       if (c.not) return { label: c.label, pass: t.trim().length > 0 && !new RegExp(c.not, c.flags || "").test(t) };
@@ -794,8 +798,45 @@ const validVariant = async (orig, v) => {
   return false;
 };
 
+/* Master levels (master.js): endless generated levels after Expert. They
+   are rebuilt from a seed on every load, never stored in the library, so
+   saved progress ("master-web-2:0:3") always maps to the same lessons. */
+const MASTER = window.PREXIS_MASTER || null;
+const isMaster = (c) => !!(c && (c.master || /^master-[a-z]+-\d+$/.test(String(c.id || ""))));
+const stripMaster = (lib) => ({ ...lib, courses: (lib.courses || []).filter((c) => !isMaster(c)) });
+const masterCache = {};
+const masterCourse = (sid, n) => {
+  const k = sid + ":" + n;
+  if (!masterCache[k]) masterCache[k] = MASTER.makeCourse(sid, n);
+  return masterCache[k];
+};
+const masterById = (id) => {
+  const m = /^master-([a-z]+)-(\d+)$/.exec(String(id || ""));
+  return m && MASTER && MASTER.subjectById(m[1]) ? masterCourse(m[1], Number(m[2])) : null;
+};
+// highest Master number per subject that has any saved progress
+const masterReach = (progress) => {
+  const out = {};
+  Object.keys(progress || {}).forEach((k) => {
+    const m = /^master-([a-z]+)-(\d+):/.exec(k);
+    if (m) out[m[1]] = Math.max(out[m[1]] || 0, Number(m[2]));
+  });
+  return out;
+};
+// library view: stored courses plus Master 1 .. (highest reached + 1) per subject
+const withMaster = (lib, progress) => {
+  if (!MASTER) return lib;
+  const reach = masterReach(progress);
+  const add = [];
+  MASTER.SUBJECTS.forEach((S) => {
+    const top = (reach[S.id] || 0) + 1;
+    for (let n = 1; n <= top; n++) add.push(masterCourse(S.id, n));
+  });
+  return { ...lib, courses: [...(lib.courses || []).filter((c) => !isMaster(c)), ...add] };
+};
+
 const contentLessonAt = (courseId, u, l) => {
-  const c = CONTENT.courses.find((x) => x.id === courseId);
+  const c = CONTENT.courses.find((x) => x.id === courseId) || masterById(courseId);
   return c && c.units[u] && c.units[u].lessons[l] ? c.units[u].lessons[l] : null;
 };
 
@@ -828,7 +869,7 @@ const contentCourses = () =>
 /* Merge built-in courses into a stored library, honoring deletions. */
 const withBuiltins = (lib) => {
   const hidden = lib.hiddenBuiltins || [];
-  const courses = (lib.courses || []).filter((c) => c.id !== "seed-js");
+  const courses = (lib.courses || []).filter((c) => c.id !== "seed-js" && !isMaster(c));
   contentCourses().forEach((cc) => {
     const have = courses.find((c) => c.id === cc.id);
     // saved copies of built-in courses pick up new level/track/gating metadata
@@ -1453,8 +1494,12 @@ function Prexis() {
   const [sRight, setSRight] = useState(0);
   const [sTotal, setSTotal] = useState(0);
   const [learner, setLearner] = useState({ xp: 0, streak: 0, lastDay: null, history: [], courseProgress: {}, dayXp: null });
-  const [library, setLibrary] = useState({ courses: [] });
+  const [libraryRaw, setLibrary] = useState({ courses: [] });
+  const library = useMemo(() => withMaster(libraryRaw, learner.courseProgress), [libraryRaw, learner.courseProgress]);
   const libRef = useRef(library);
+  const [sched, setSched] = useState({});
+  const schedRef = useRef({});
+  const [practiceSeen, setPracticeSeen] = useState([]);
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const [skills, setSkills] = useState({});
   const skillsRef = useRef({});
@@ -1537,6 +1582,8 @@ function Prexis() {
     setLearner({ xp: 0, streak: 0, lastDay: null, history: [], courseProgress: {}, dayXp: null, lastLesson: null });
     setSkills({}); skillsRef.current = {};
     setDeck([]); deckRef.current = [];
+    setSched({}); schedRef.current = {};
+    setPracticeSeen([]);
     setApiKey(""); setClaudeKey("");
     setModelId(DEFAULT_MODEL); setClaudeModel(DEFAULT_CLAUDE_MODEL);
     setProvider("claude");
@@ -1547,9 +1594,32 @@ function Prexis() {
       if (r && r.value) setProject({ ...DEFAULT_PROJECT, ...JSON.parse(r.value) });
     } catch (e) {}
     {
+      let loadedProgress = {};
       try {
         const r = await storage.get(LEARNER_KEY);
-        if (r && r.value) setLearner({ courseProgress: {}, dayXp: null, ...JSON.parse(r.value) });
+        if (r && r.value) {
+          const lr = { courseProgress: {}, dayXp: null, ...JSON.parse(r.value) };
+          loadedProgress = lr.courseProgress || {};
+          setLearner(lr);
+        }
+      } catch (e) {}
+      try {
+        let sc = {};
+        const rsc = await storage.get(SCHED_KEY);
+        if (rsc && rsc.value) sc = JSON.parse(rsc.value) || {};
+        // lessons finished before spaced review existed join the schedule,
+        // weakest first, three a day, so old material resurfaces gently
+        const ratioOf = (v) => { const m = /^(\d+)\/(\d+)$/.exec(v || ""); return m && Number(m[2]) ? Number(m[1]) / Number(m[2]) : 1; };
+        const missing = Object.keys(loadedProgress).filter((k) => !sc[k]).sort((a, b) => ratioOf(loadedProgress[a]) - ratioOf(loadedProgress[b]));
+        if (missing.length && MASTER) {
+          missing.forEach((k, i) => { sc[k] = { reps: 1, interval: 1, ease: 2.5, lapses: 0, last: dayStr(0), due: dayStr(Math.floor(i / 3)) }; });
+          try { await storage.set(SCHED_KEY, JSON.stringify(sc)); } catch (e) {}
+        }
+        setSched(sc); schedRef.current = sc;
+      } catch (e) {}
+      try {
+        const rps = await storage.get(PSEEN_KEY);
+        if (rps && rps.value) setPracticeSeen(JSON.parse(rps.value) || []);
       } catch (e) {}
       try {
         const r2 = await storage.get(LIB_KEY);
@@ -1637,7 +1707,9 @@ function Prexis() {
   const persistClaudeModel = async (m) => { setClaudeModel(m); try { await storage.set(CLAUDE_MODEL_KEY, m); } catch (e) {} };
   const persistProvider = async (p) => { setProvider(p); try { await storage.set(PROVIDER_KEY, p); } catch (e) {} };
   const persistLearner = async (next) => { setLearner(next); try { await storage.set(LEARNER_KEY, JSON.stringify(next)); } catch (e) {} };
-  const persistLib = async (next) => { setLibrary(next); libRef.current = next; try { await storage.set(LIB_KEY, JSON.stringify(next)); } catch (e) {} };
+  const persistLib = async (next) => { const clean = stripMaster(next); setLibrary(clean); libRef.current = next; try { await storage.set(LIB_KEY, JSON.stringify(clean)); } catch (e) {} };
+  const persistSched = async (next) => { setSched(next); schedRef.current = next; try { await storage.set(SCHED_KEY, JSON.stringify(next)); } catch (e) {} };
+  const persistPracticeSeen = async (next) => { const cut = next.slice(-4000); setPracticeSeen(cut); try { await storage.set(PSEEN_KEY, JSON.stringify(cut)); } catch (e) {} };
   const persistPrefs = async (next) => { setPrefs(next); try { await storage.set(PREFS_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistSkills = async (next) => { setSkills(next); skillsRef.current = next; try { await storage.set(SKILLS_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistDeck = async (next) => { setDeck(next); deckRef.current = next; try { await storage.set(DECK_KEY, JSON.stringify(next)); } catch (e) {} };
@@ -1649,7 +1721,8 @@ function Prexis() {
       v: 1,
       exported: new Date().toISOString(),
       learner,
-      library: { ...library, courses: library.courses },
+      library: stripMaster(libraryRaw),
+      sched,
       prefs,
       skills,
       deck,
@@ -1680,6 +1753,7 @@ function Prexis() {
       if (d.project) persistProject({ ...DEFAULT_PROJECT, ...d.project });
       if (d.skills) persistSkills(d.skills);
       if (Array.isArray(d.deck)) persistDeck(d.deck);
+      if (d.sched && typeof d.sched === "object") persistSched(d.sched);
       if (d.provider) persistProvider(d.provider);
       if (d.modelId) persistModel(d.modelId);
       if (d.claudeModel) persistClaudeModel(d.claudeModel);
@@ -1730,6 +1804,37 @@ function Prexis() {
   };
   const today = dayStr(0);
   const dueCards = deck.filter((c) => c.due <= today);
+  // spaced review of whole lessons: "courseId:u:l" -> SM-2 state
+  const lessonAtKey = (k) => {
+    const m = /^(.+):(\d+):(\d+)$/.exec(k);
+    if (!m) return null;
+    const c = library.courses.find((x) => x.id === m[1]);
+    const ls = c && c.units[Number(m[2])] && c.units[Number(m[2])].lessons[Number(m[3])];
+    return ls && ls.status === "ready" && Array.isArray(ls.steps) && ls.steps.some((st) => ["mcq", "numeric", "order", "output"].includes(st.type)) ? { course: c, ls } : null;
+  };
+  const dueLessons = Object.entries(sched)
+    .filter(([k, v]) => v && v.due && v.due <= today && lessonAtKey(k))
+    .sort((a, b) => a[1].due.localeCompare(b[1].due));
+  const reviewCount = dueCards.length + dueLessons.length;
+  // learner tier per Master subject: 1-4 for Beginner to Expert, 4 + N for Master N
+  const tierFor = (sid) => {
+    if (!MASTER) return 1;
+    let best = 1;
+    Object.keys(learner.courseProgress || {}).forEach((k) => {
+      const cid = k.split(":")[0];
+      if (MASTER.subjectOfCourse(cid) !== sid) return;
+      const mm = /^master-[a-z]+-(\d+)$/.exec(cid);
+      const c = mm ? null : CONTENT.courses.find((x) => x.id === cid);
+      best = Math.max(best, mm ? 4 + Number(mm[1]) : MASTER.tierOf(c && c.level));
+    });
+    return best;
+  };
+  const sidOfLabel = (label) => {
+    if (!MASTER) return null;
+    const key = topicKey(label);
+    const c = library.courses.find((x) => topicKey(x.subject) === key || topicKey(x.title) === key);
+    return c ? MASTER.subjectOfCourse(c.id) : null;
+  };
 
   /* Smart review session:
      - priority: most-lapsed first, then most overdue
@@ -1741,9 +1846,10 @@ function Prexis() {
   const startReview = async () => {
     const due = [...dueCards].sort((a, b) => (b.lapses - a.lapses) || a.due.localeCompare(b.due));
     const cards = interleaveByTopic(due.slice(0, 8));
-    if (!cards.length) return;
+    const lessonsDue = dueLessons.slice(0, cards.length >= 6 ? 2 : 4);
+    if (!cards.length && !lessonsDue.length) return;
     const variantByCard = {};
-    if (aiKey().trim()) {
+    if (aiKey().trim() && cards.length) {
       setLoadingLabel("Smart review");
       setScreen("loading");
       try {
@@ -1776,6 +1882,14 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
       steps.push(deep(variantByCard[c.id] || c.step));
       meta.push(c.id);
     }
+    // due lessons: one or two of their graded questions each (re-rolled
+    // where the step is parameterized), then the lesson is rescheduled
+    lessonsDue.forEach(([k]) => {
+      const hit = lessonAtKey(k);
+      if (!hit) return;
+      const graded = shuffle(hit.ls.steps.filter((st) => ["mcq", "numeric", "order", "output"].includes(st.type)));
+      graded.slice(0, 2).forEach((st) => { steps.push(deep(st)); meta.push("L:" + k); });
+    });
     launchLesson({ title: "Smart review", steps }, { review: meta }, "");
   };
 
@@ -2252,12 +2366,14 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
      you scored low on are weighted heaviest, your open review misses for
      the subject lead the set, and parameterized questions re-roll, so no
      two practice runs are the same. */
-  const startPractice = (label) => {
+  const startPractice = (label, sidIn) => {
     const key = topicKey(label);
+    const sid = MASTER ? (sidIn || sidOfLabel(label)) : null;
     const gradedT = ["mcq", "numeric", "order", "output", "code"];
     const pool = [];
     library.courses.forEach((c) => {
       if (topicKey(c.subject) !== key && topicKey(c.title) !== key) return;
+      if (c.master && lockOf(c)) return; // a locked Master level is not practice material yet
       c.units.forEach((un, ui) =>
         un.lessons.forEach((l, li) => {
           if (l.status !== "ready" || !Array.isArray(l.steps)) return;
@@ -2271,7 +2387,10 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
         })
       );
     });
-    if (pool.length < 3) { startQuick(label); return; }
+    // generated questions (master.js) at the learner's tier never repeat:
+    // every served question's hash is remembered and skipped next time
+    const genN = sid ? (pool.length < 3 ? 8 : 3) : 0;
+    if (pool.length < 3 && !genN) { startQuick(label); return; }
     const seen = new Set();
     const steps = [];
     // open review misses for this subject lead the set
@@ -2282,7 +2401,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     // weighted sample without replacement from the pool
     const bag = [...pool];
     let lastFrom = null;
-    while (steps.length < 8 && bag.length) {
+    while (steps.length < 8 - genN && bag.length) {
       const total = bag.reduce((a, x) => a + x.weight * (x.from === lastFrom ? 0.35 : 1), 0);
       let r = Math.random() * total;
       let pick = 0;
@@ -2297,8 +2416,22 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
       lastFrom = chosen.from;
       steps.push(deep(chosen.st));
     }
+    if (genN) {
+      const g = MASTER.practice(sid, tierFor(sid), genN, null, new Set(practiceSeen));
+      g.steps.forEach((st) => steps.splice(Math.floor(Math.random() * (steps.length + 1)), 0, st));
+      persistPracticeSeen([...practiceSeen, ...g.hashes]);
+    }
     if (steps.length < 3) { startQuick(label); return; }
     launchLesson({ title: "Practice: " + label, steps }, { via: "quick", practice: true }, label);
+  };
+
+  /* Optional project challenge: an open brief for one subject, scaled to
+     the learner's tier, graded by a self check rubric plus automatic
+     checks on the written report. */
+  const startProject = (sid) => {
+    if (!MASTER || !MASTER.subjectById(sid)) return;
+    const p = MASTER.project(sid, tierFor(sid), Math.floor(Math.random() * 1e9));
+    launchLesson({ title: p.title, steps: p.steps }, { via: "quick", practice: true, project: sid }, "");
   };
 
   const step = lesson ? lesson.steps[idx] : null;
@@ -2376,7 +2509,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     let ok = false;
     if (step.type === "mcq") ok = sel === step.answer;
     if (step.type === "numeric") {
-      const v = parseFloat(num);
+      const v = parseFloat(String(num).replace(/[,\s$]/g, ""));
       const tol = typeof step.tolerance === "number" ? step.tolerance : 0.01;
       ok = !isNaN(v) && Math.abs(v - step.answer) <= tol;
     }
@@ -2463,6 +2596,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
   };
   const hintAvailable = () => {
     if (!step || checked) return false;
+    if (typeof step.hintLimit === "number" && hintN >= step.hintLimit) return false;
     if (step.type === "mcq") return elim.length < Math.max(0, (step.options || []).length - 2);
     if (step.type === "code") return step.solution && revealN < step.solution.split("\n").length - 1;
     if (step.type === "order") return orderSeq.length < step.items.length;
@@ -2539,14 +2673,25 @@ Respond with ONLY valid JSON: {"note":"..."}`,
       else streak = 1;
       const progress = { ...(learner.courseProgress || {}) };
       if (lessonSource && lessonSource.courseId !== undefined) {
-        progress[lessonSource.courseId + ":" + lessonSource.u + ":" + lessonSource.l] = sRight + "/" + sTotal;
+        const lk = lessonSource.courseId + ":" + lessonSource.u + ":" + lessonSource.l;
+        progress[lk] = sRight + "/" + sTotal;
+        if (MASTER) {
+          const hints = hintMarks.reduce((a, h) => a + (h || 0), 0);
+          persistSched({ ...schedRef.current, [lk]: MASTER.sm2(schedRef.current[lk], MASTER.quality(sRight, sTotal, hints), td) });
+        }
       }
       // spaced repetition + skill model updates
       if (lessonSource && lessonSource.review) {
         const nextDeck = deep(deckRef.current);
         const nextSkills = deep(skillsRef.current);
+        const lessonTally = {};
         lessonSource.review.forEach((id, i) => {
           if (!id) return; // re-teach step, not a card
+          if (String(id).indexOf("L:") === 0) {
+            const t = lessonTally[id.slice(2)] || (lessonTally[id.slice(2)] = { r: 0, n: 0, h: 0 });
+            t.n += 1; if (marks[i] === "right") t.r += 1; t.h += hintMarks[i] || 0;
+            return;
+          }
           const c = nextDeck.find((x) => x.id === id);
           if (!c) return;
           const ok = marks[i] === "right";
@@ -2574,6 +2719,11 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         });
         persistDeck(nextDeck.filter((c) => c.interval <= 30));
         persistSkills(nextSkills);
+        if (MASTER && Object.keys(lessonTally).length) {
+          const ns = { ...schedRef.current };
+          Object.entries(lessonTally).forEach(([k, t]) => { ns[k] = MASTER.sm2(ns[k], MASTER.quality(t.r, t.n, t.h), td); });
+          persistSched(ns);
+        }
       } else if (sTotal > 0 && lessonTopic) {
         const nextSkills = deep(skillsRef.current);
         bumpSkill(nextSkills, lessonTopic, sRight / sTotal, 0.35);
@@ -2717,6 +2867,42 @@ Respond with ONLY valid JSON: {"note":"..."}`,
     );
   };
 
+  /* Keep learning: there is always a next thing. Reviews due come first,
+     then the next Master lesson (the subject you used last leads), then
+     endless generated practice. */
+  const masterNext = (sid) => {
+    const list = library.courses.filter((c) => c.master && c.masterSubject === sid).sort((a, b) => a.masterN - b.masterN);
+    for (const c of list) {
+      const p = lessonProgressOf(c);
+      if (p.done >= p.total) continue;
+      if (lockOf(c)) return { course: c, locked: true, p };
+      const pick = nextReadyInCourse(c, { u: 0, l: 0 });
+      if (!pick) return null;
+      return { course: c, pick, ls: c.units[pick.u].lessons[pick.l], p };
+    }
+    return null;
+  };
+  // practice label for a subject: the subject name of the highest course reached
+  const practiceLabelFor = (sid) => {
+    let best = null, bestT = 0;
+    library.courses.forEach((c) => {
+      if (!MASTER || MASTER.subjectOfCourse(c.id) !== sid) return;
+      const t = c.master ? 4 + c.masterN : MASTER.tierOf(c.level);
+      const p = lessonProgressOf(c);
+      if ((p.done > 0 || t === 1) && t > bestT) { best = c; bestT = t; }
+    });
+    return best ? best.subject : MASTER.subjectById(sid).label;
+  };
+  const keepLearning = (() => {
+    if (!MASTER) return null;
+    const lastSid = learner.lastLesson ? MASTER.subjectOfCourse(learner.lastLesson.courseId) : null;
+    const order = [lastSid, ...MASTER.SUBJECTS.map((S) => S.id)].filter((x, i, a) => x && a.indexOf(x) === i);
+    let master = null;
+    for (const sid of order) { const m = masterNext(sid); if (m && !m.locked) { master = { sid, ...m }; break; } }
+    const sid = master ? master.sid : order[0];
+    return { kind: reviewCount > 0 ? "review" : master ? "master" : "practice", master, sid, S: MASTER.subjectById(sid) };
+  })();
+
   const activeCourse = activeCourseId ? library.courses.find((c) => c.id === activeCourseId) : null;
   const showTabs = screen === "home";
   const todayXp = learner.dayXp && learner.dayXp.d === today ? learner.dayXp.xp : 0;
@@ -2840,14 +3026,63 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               </div>
             )}
 
-            {dueCards.length > 0 && (
-              <div className="card" style={{ marginTop: 22, padding: 14 }}>
+            {keepLearning && (
+              <div className="card" data-keep-learning={keepLearning.kind} style={{ marginTop: 22, padding: 14 }}>
+                <p className="kicker" style={{ margin: 0 }}>KEEP LEARNING</p>
+                {keepLearning.kind === "review" && (
+                  <p style={{ margin: "6px 0 0", fontSize: 14.5, lineHeight: 1.5 }}>
+                    {reviewCount} review{reviewCount === 1 ? "" : "s"} due today. Clear them first, then carry on.
+                  </p>
+                )}
+                {keepLearning.master && (
+                  <div style={{ marginTop: 6 }}>
+                    <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700 }}>
+                      <span className="mono" data-master-badge="1" style={{ fontSize: 10, border: "1.5px solid var(--ink)", borderRadius: 4, padding: "1px 5px", marginRight: 6, letterSpacing: ".06em" }}>MASTER {keepLearning.master.course.masterN}</span>
+                      {keepLearning.master.course.title} · {keepLearning.master.ls.title}
+                    </p>
+                    <p className="mono" style={{ margin: "4px 0 0", fontSize: 10, color: "var(--pencil)", letterSpacing: ".06em" }}>
+                      {keepLearning.master.p.done}/{keepLearning.master.p.total} LESSONS DONE · NEXT: MASTER {keepLearning.master.course.masterN + 1}
+                    </p>
+                    <div className="bar" style={{ marginTop: 6 }}><i style={{ width: (keepLearning.master.p.done / keepLearning.master.p.total) * 100 + "%" }} /></div>
+                  </div>
+                )}
+                {keepLearning.kind === "practice" && (
+                  <p style={{ margin: "6px 0 0", fontSize: 14.5, lineHeight: 1.5 }}>
+                    Endless practice in {keepLearning.S.label}: fresh questions at your level, generated on this device, never repeated.
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {keepLearning.kind === "review" && <button className="primary" data-kl="review" style={{ width: "auto", padding: "10px 14px", fontSize: 14 }} onClick={startReview}>Start review</button>}
+                  {keepLearning.kind === "master" && (
+                    <button className="primary" data-kl="master" style={{ width: "auto", padding: "10px 14px", fontSize: 14 }}
+                      onClick={() => { setActiveCourseId(keepLearning.master.course.id); startLibraryLesson(keepLearning.master.course.id, keepLearning.master.pick.u, keepLearning.master.pick.l); }}>
+                      Next Master lesson
+                    </button>
+                  )}
+                  <button className={keepLearning.kind === "practice" ? "primary" : "ghost"} data-kl="practice" style={{ width: "auto", padding: "10px 14px", fontSize: keepLearning.kind === "practice" ? 14 : 11 }}
+                    onClick={() => startPractice(practiceLabelFor(keepLearning.sid), keepLearning.sid)}>
+                    {keepLearning.kind === "practice" ? "Practice now" : "PRACTICE"}
+                  </button>
+                  <button className="ghost" data-kl="project" style={{ width: "auto", padding: "10px 14px", fontSize: 11 }} onClick={() => startProject(keepLearning.sid)}>PROJECT</button>
+                </div>
+              </div>
+            )}
+
+            {reviewCount > 0 && (
+              <div className="card" data-review-queue="1" style={{ marginTop: 12, padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <p className="kicker" style={{ margin: 0 }}>SMART REVIEW</p>
+                    <p className="kicker" style={{ margin: 0 }}>SMART REVIEW · TODAY</p>
                     <p style={{ margin: "6px 0 0", fontSize: 14.5, lineHeight: 1.5 }}>
-                      {dueCards.length} thing{dueCards.length === 1 ? "" : "s"} you missed {dueCards.length === 1 ? "is" : "are"} due again today.
+                      {dueCards.length > 0 ? dueCards.length + " thing" + (dueCards.length === 1 ? "" : "s") + " you missed " + (dueCards.length === 1 ? "is" : "are") + " due again" : ""}
+                      {dueCards.length > 0 && dueLessons.length > 0 ? ", and " : ""}
+                      {dueLessons.length > 0 ? dueLessons.length + " older lesson" + (dueLessons.length === 1 ? " is" : "s are") + " ready to revisit" : ""}.
                     </p>
+                    {dueLessons.length > 0 && (
+                      <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.45 }}>
+                        {dueLessons.slice(0, 3).map(([k]) => lessonAtKey(k).ls.title).join("; ")}{dueLessons.length > 3 ? "; and " + (dueLessons.length - 3) + " more" : ""}
+                      </p>
+                    )}
                     <p className="mono" style={{ margin: "6px 0 0", fontSize: 10, color: "var(--pencil)", letterSpacing: ".06em" }}>
                       {Object.entries(dueCards.reduce((m, c) => { const t = c.topic || "general"; m[t] = (m[t] || 0) + 1; return m; }, {}))
                         .slice(0, 3)
@@ -2984,7 +3219,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               )}
               {library.courses.length > 3 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                  {["all", ...TRACKS.map((t) => t.id), ...LEVELS].map((f) => (
+                  {["all", ...TRACKS.map((t) => t.id), ...LEVELS, "Master"].map((f) => (
                     <button key={f} className={"ghost" + (courseFilter === f ? " on" : "")} style={{ fontSize: 10, padding: "4px 8px" }} onClick={() => setCourseFilter(f)}>
                       {f === "all" ? "ALL" : (TRACKS.find((t) => t.id === f)?.label || f).toUpperCase()}
                     </button>
@@ -3010,16 +3245,17 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                   return (
                     <button
                       key={c.id}
+                      data-course-id={c.id}
                       className="card"
                       onClick={() => { setActiveCourseId(c.id); setCoursePick(null); setScreen("course"); }}
                       style={{ padding: 14 }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontWeight: 800, fontSize: 16 }}>{lock ? "🔒 " : ""}{c.title}</span>
+                        <span style={{ fontWeight: 800, fontSize: 16 }}>{lock ? "🔒 " : ""}{c.master ? <span className="mono" data-master-badge="1" style={{ fontSize: 10, border: "1.5px solid var(--ink)", borderRadius: 4, padding: "1px 5px", marginRight: 6, letterSpacing: ".06em", verticalAlign: "middle" }}>MASTER {c.masterN}</span> : null}{c.title}</span>
                         <span className="mono" style={{ fontSize: 11, color: "var(--pencil)" }}>{lock ? "LOCKED" : p.done + "/" + p.total + " COMPLETED"}</span>
                       </div>
                       <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "4px 0 0" }}>
-                        {(c.track ? c.track.toUpperCase() + " · " : "") + c.level.toUpperCase()}{c.prereq ? " · AFTER " + c.prereq.toUpperCase() : ""}{p.ready < p.total ? " · " + p.ready + "/" + p.total + " GENERATED" : ""}
+                        {(c.track ? c.track.toUpperCase() + " · " : "") + c.level.toUpperCase()}{c.master ? " " + c.masterN + " · NEXT: MASTER " + (c.masterN + 1) : ""}{c.prereq ? " · AFTER " + c.prereq.toUpperCase() : ""}{p.ready < p.total ? " · " + p.ready + "/" + p.total + " GENERATED" : ""}
                       </p>
                       {c.blurb ? <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.45, margin: "6px 0 0", textAlign: "left" }}>{c.blurb}</p> : null}
                       {lock ? <p className="mono" data-lock="1" style={{ fontSize: 11, color: "var(--margin)", lineHeight: 1.45, margin: "6px 0 0", textAlign: "left" }}>{lock.msg}</p> : null}
@@ -3124,9 +3360,23 @@ Respond with ONLY valid JSON: {"note":"..."}`,
         {tab === "learn" && screen === "course" && activeCourse && (
           <div>
             <button className="mono" onClick={() => setScreen("home")} style={{ background: "none", border: "none", padding: 0, marginTop: 24, color: "var(--pencil)", fontSize: 12 }}>← BACK</button>
+            {activeCourse.master && (
+              <p className="mono" data-master-badge="1" style={{ display: "inline-block", margin: "14px 0 0", fontSize: 11, border: "1.5px solid var(--ink)", borderRadius: 4, padding: "2px 7px", letterSpacing: ".08em" }}>MASTER {activeCourse.masterN}</p>
+            )}
             <h1 className="display" style={{ fontWeight: 700, fontSize: 28, lineHeight: 1.12, margin: "14px 0 0" }}>{activeCourse.title}</h1>
             <p className="kicker" style={{ marginTop: 6 }}>{(activeCourse.track ? activeCourse.track.toUpperCase() + " · " : "") + activeCourse.level.toUpperCase()}{activeCourse.prereq ? " · PREREQ " + activeCourse.prereq.toUpperCase() : ""}</p>
             {activeCourse.blurb ? <p style={{ fontSize: 14, color: "var(--pencil)", lineHeight: 1.55, marginTop: 10 }}>{activeCourse.blurb}</p> : null}
+            {activeCourse.master && !lockOf(activeCourse) && (() => {
+              const mp = lessonProgressOf(activeCourse);
+              return (
+                <div data-master-progress="1" style={{ marginTop: 12 }}>
+                  <p className="mono" style={{ margin: 0, fontSize: 11, color: "var(--pencil)", letterSpacing: ".06em" }}>
+                    PROGRESS TOWARD MASTER {activeCourse.masterN + 1}: {mp.done}/{mp.total} LESSONS, OR 90% MASTERY IN {String(activeCourse.subject).toUpperCase()}
+                  </p>
+                  <div className="bar" style={{ marginTop: 6 }}><i style={{ width: (mp.done / mp.total) * 100 + "%" }} /></div>
+                </div>
+              );
+            })()}
             {lockOf(activeCourse) && (
               <div className="card" role="status" style={{ marginTop: 14, padding: "12px 14px", borderColor: "var(--margin)", boxShadow: "none" }}>
                 <p className="mono" style={{ margin: 0, fontSize: 12, color: "var(--margin)", letterSpacing: ".06em" }}>🔒 {activeCourse.level.toUpperCase()} IS LOCKED</p>
@@ -3135,8 +3385,13 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             )}
             {activeCourse.units.some((un) => un.lessons.some((l) => l.status === "ready")) && !lockOf(activeCourse) && (
               <button className="ghost" style={{ width: "100%", marginTop: 16, padding: "10px 12px" }}
-                onClick={() => startPractice(activeCourse.subject || activeCourse.title)}>
+                onClick={() => startPractice(activeCourse.subject || activeCourse.title, MASTER ? MASTER.subjectOfCourse(activeCourse.id) : null)}>
                 PRACTICE · FRESH QUESTIONS EVERY RUN
+              </button>
+            )}
+            {MASTER && MASTER.subjectOfCourse(activeCourse.id) && !lockOf(activeCourse) && (
+              <button className="ghost" data-project="1" style={{ width: "100%", marginTop: 8, padding: "10px 12px" }} onClick={() => startProject(MASTER.subjectOfCourse(activeCourse.id))}>
+                PROJECT · AN OPEN BRIEF SCALED TO YOUR LEVEL
               </button>
             )}
             {activeCourse.units.some((un) => un.lessons.some((l) => (l.steps || []).some((st) => st.type === "build"))) && (
@@ -3391,6 +3646,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <div style={{ overflowWrap: "anywhere" }}>
                 <p className="kicker" style={{ marginTop: 4 }}>WRITE · PRACTICE</p>
                 <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
+                {step.code && <div style={{ marginTop: 12 }}><CodeBlock code={step.code} /></div>}
                 {step.starter ? (
                   <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "10px 0 0", letterSpacing: ".06em" }}>THE DRAFT IS IN THE BOX. EDIT IT IN PLACE.</p>
                 ) : null}
@@ -3533,6 +3789,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             {step.type === "numeric" && (
               <div>
                 <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
+                {step.code && <div style={{ marginTop: 12 }}><CodeBlock code={step.code} /></div>}
                 <input
                   value={num}
                   onChange={(e) => setNum(e.target.value)}
@@ -3593,7 +3850,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 {testResults && (
                   <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                     {testResults.map((r, i) => (
-                      <div key={i} className="mono" style={{ fontSize: 12, padding: "8px 10px", borderRadius: 6, background: "var(--paper-2)", border: `1.5px solid ${r.pass ? "var(--pen)" : "var(--margin)"}` }}>
+                      <div key={i} className="mono" style={{ fontSize: 12, padding: "8px 10px", borderRadius: 6, overflowWrap: "anywhere", wordBreak: "break-word", background: "var(--paper-2)", border: `1.5px solid ${r.pass ? "var(--pen)" : "var(--margin)"}` }}>
                         <span style={{ color: r.pass ? "var(--pen)" : "var(--margin)", fontWeight: 600 }}>{r.pass ? "✓" : "✗"}</span>{" "}
                         {r.call} → {r.error ? r.error : JSON.stringify(r.got)}
                         {!r.pass && !r.error && <span style={{ color: "var(--pencil)" }}> (expected {JSON.stringify(r.expect)})</span>}
@@ -3960,7 +4217,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
             <div style={{ marginTop: 30 }}>
               <p className="kicker">CONTENT LIBRARY</p>
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
-                {library.courses.map((c) => {
+                {library.courses.filter((c) => !c.master).map((c) => {
                   const p = lessonProgressOf(c);
                   const open = expandedId === c.id;
                   const busyCourse = genState && genState.courseId === c.id;
