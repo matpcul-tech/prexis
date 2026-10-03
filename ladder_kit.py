@@ -115,3 +115,51 @@ def px(sel, prop, label, lo=None, hi=None, hint=None, every=False):
     if hint:
         c["hint"] = hint
     return c
+
+
+# ---------- numeric steps whose fixed version is derived from the generator ----------
+
+import math as _math
+
+_FN = {"ceil": _math.ceil, "floor": _math.floor, "sqrt": _math.sqrt, "log": _math.log, "log10": _math.log10,
+       "log2": _math.log2, "exp": _math.exp, "abs": abs, "min": min, "max": max, "round": round, "pi": _math.pi}
+
+
+def _ev(expr, vals):
+    return eval(expr.replace("^", "**"), {"__builtins__": {}}, dict(_FN, **vals))
+
+
+def _fmt(v):
+    """Same display rule as the app's generator: two decimals at most,
+    thousands separators for whole numbers of 1,000 or more."""
+    if not isinstance(v, (int, float)):
+        return str(v)
+    r = round(v * 100) / 100
+    if float(r).is_integer() and abs(r) >= 1000:
+        return "{:,}".format(int(r))
+    if float(r).is_integer():
+        return str(int(r))
+    return repr(r)
+
+
+def NQ(prompt, explain, vars, answer, base, rnd=2, tol=0, show=None):
+    """A numeric step with a generator. The fixed prompt, answer and
+    explanation are rendered from the base values with the same formula,
+    so the two versions can never disagree."""
+    shown = dict(base)
+    for k, e in (show or {}).items():
+        shown[k] = round(_ev(e, base) * 100) / 100
+    ans = round(_ev(answer, base), rnd)
+    if float(ans).is_integer():
+        ans = int(ans)
+    sub = lambda t: __import__("re").sub(r"\{(\w+)\}", lambda m: _fmt(ans) if m.group(1) == "A" else (_fmt(shown[m.group(1)]) if m.group(1) in shown else m.group(0)), t)
+    gen = {"vars": vars, "answer": answer, "round": rnd, "prompt": prompt, "explain": explain}
+    if tol:
+        gen["tolerance"] = tol
+    if show:
+        gen["show"] = show
+    for k, (lo, hi, st) in vars.items():
+        assert lo <= base[k] <= hi, "base value outside its range: " + k + " in " + prompt[:60]
+        steps = (base[k] - lo) / st
+        assert abs(steps - round(steps)) < 1e-6, "base value not on the range's step: " + k + " in " + prompt[:60]
+    return {"type": "numeric", "prompt": sub(prompt), "answer": ans, "tolerance": tol, "explain": sub(explain), "gen": gen}

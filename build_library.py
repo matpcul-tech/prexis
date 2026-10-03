@@ -26,7 +26,7 @@ add_web(courses, picks)
 # Subject ladders (Intermediate, Advanced, Expert) for the other Beginner
 # courses. Each module adds three courses gated on the one before.
 import importlib
-for mod in ["extra_js", "extra_design", "extra_seo", "extra_writing"]:
+for mod in ["extra_js", "extra_design", "extra_seo", "extra_writing", "extra_math", "extra_sheets", "extra_money"]:
     importlib.import_module(mod).add(courses, picks)
 
 overlay = {
