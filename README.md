@@ -58,6 +58,7 @@ Every Beginner subject now climbs to Intermediate, Advanced and Expert, nine les
 - **Numbers you can use** continues with **Math for real decisions**, **Statistics you can trust** and **Modeling the world**. Numeric problems re-roll with fresh values on retry, sliders let you explore a formula, and capstones are written decisions or models checked for structure.
 - **Spreadsheet thinking** continues with **Spreadsheets that scale**, **Spreadsheet analysis** and **Spreadsheet engineering**: lookups, SUMIFS, FILTER, INDEX and MATCH, LET, financial functions, checks and simulation. Formula steps are checked for the right functions, ranges and anchoring.
 - **Money that behaves** continues with **Money with a plan**, **Investing with eyes open** and **Planning the long game**. Every number is a labeled example, tax and account rules are described in general terms, and nothing is personal advice.
+- **Clear thinking** continues with **Arguments you can test**, **Reasoning under uncertainty** and **Judgment and decisions**: arguments and fallacies, base rates, Bayes, studies, forecasts, decision journals, systems and metrics. Numeric problems re-roll, and written steps (premortems, forecasts, decision memos) are checked for structure.
 
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions. Typing a topic checks the library first, preferring lessons at your level; Studio AI is optional and secondary.
 
