@@ -21,6 +21,7 @@ Open http://localhost:8765/. No build step, no account. React, Babel and mathjs 
 - `content.js`: the original curated curriculum (67 lessons, 9 courses)
 - `content_extra.js`: extra tracks (including the web ladder from `extra_web.py`) and course metadata (track, prereq, unlock, blurb), merged into the curriculum at load
 - `build_library.py` + `extra_*.py`: rebuild `content_extra.js` from source
+- `master.js`: Master levels, endless practice, project briefs and the SM-2 scheduler. Plain JavaScript, no dependencies, runs entirely in the browser
 - `app.patch`, `bootstrap.sh`, `AGENTS.md`: the agent authoring pipeline. `bootstrap.sh` regenerates `app.jsx` from git history plus `app.patch`; you only need it when changing the player through the patch.
 
 ## Built-in curriculum (no key, no account)
@@ -59,6 +60,17 @@ Every Beginner subject now climbs to Intermediate, Advanced and Expert, nine les
 - **Spreadsheet thinking** continues with **Spreadsheets that scale**, **Spreadsheet analysis** and **Spreadsheet engineering**: lookups, SUMIFS, FILTER, INDEX and MATCH, LET, financial functions, checks and simulation. Formula steps are checked for the right functions, ranges and anchoring.
 - **Money that behaves** continues with **Money with a plan**, **Investing with eyes open** and **Planning the long game**. Every number is a labeled example, tax and account rules are described in general terms, and nothing is personal advice.
 - **Clear thinking** continues with **Arguments you can test**, **Reasoning under uncertainty** and **Judgment and decisions**: arguments and fallacies, base rates, Bayes, studies, forecasts, decision journals, systems and metrics. Numeric problems re-roll, and written steps (premortems, forecasts, decision memos) are checked for structure.
+
+### Master levels (learning never ends)
+
+After Expert, every subject keeps going: **Master 1, Master 2, Master 3** and on, with no ceiling. Master 1 opens when you finish the Expert course or reach 85% mastery in it; each next Master opens when you finish the one before or reach 90% mastery in that subject's Master work. Nothing here needs an API key or a network call: `master.js` builds each level on your device from a fixed seed, so a Master level is the same every time you open it and saved progress always maps to the same lessons.
+
+- Each Master level is 9 lessons in three units (Combine, Stretch, Prove it). Every lesson mixes two or three topics from the earlier levels into multi step problems, and lesson 9 is a capstone.
+- Difficulty rises with the number: bigger figures, more steps per problem, more topics combined, and fewer supports (a worked example only in Master 1 and 2, one hint from Master 3, no hints from Master 5).
+- Every answer is computed by the generator that wrote the question: numbers, spreadsheet formulas evaluated against the shown table, JavaScript tasks with tests from an independent reference function, outputs from running the code, robots.txt rules, CSS specificity, contrast ratios. Money questions say "Example", use general principles and invented tax brackets marked as such, and never promise returns.
+- **Endless practice** adds generated questions at your level to every practice set. Each served question is remembered on your device (`prexis-practice-seen-v1`) and never served again.
+- **Spaced review** schedules every finished lesson with SM-2 style intervals (1 day, 6 days, then growing by ease; a weak score resets it). The home screen shows today's queue: missed questions plus older lessons to revisit (`prexis-sched-v1`). Lessons finished before this existed join the queue gently, weakest first, three a day.
+- **Keep learning** on the home screen always offers the next thing: reviews due, then your next Master lesson, then endless practice. It also opens an optional **project**: an open brief for the subject, scaled to your level, graded by a self check rubric plus the automatic checks a written report allows (numbered items, length, a live link where the brief asks for one).
 
 Lessons teach before they test: a concept, then a worked example you reveal step by step, then the questions. Typing a topic checks the library first, preferring lessons at your level; Studio AI is optional and secondary.
 
