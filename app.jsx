@@ -9,6 +9,8 @@ const SKILLS_KEY = "prexis-skills-v1";
 const DECK_KEY = "prexis-deck-v1";
 const SCHED_KEY = "prexis-sched-v1"; // spaced review schedule per finished lesson (SM-2)
 const PSEEN_KEY = "prexis-practice-seen-v1"; // hashes of generated practice already served
+const DRAFTS_KEY = "prexis-drafts-v1"; // drawings that passed a draft step, keyed course:unit:lesson:step
+const DRAFT = window.PREXIS_DRAFT || null; // drafting.js: Sovereign Draft links, drawing checks, previews
 const KEY_KEY = "prexis-xai-key";
 const MODEL_KEY = "prexis-xai-model";
 const PROVIDER_KEY = "prexis-provider";
@@ -36,6 +38,7 @@ const TRACKS = [
   { id: "thinking", label: "Thinking" },
   { id: "writing", label: "Writing" },
   { id: "money", label: "Money" },
+  { id: "drafting", label: "Drafting" },
 ];
 const LEVEL_RANK = { Beginner: 1, Intermediate: 2, Advanced: 3, Expert: 4, Master: 5 };
 const LEVELS = ["Beginner", "Intermediate", "Advanced", "Expert"];
@@ -850,6 +853,7 @@ const contentCourses = () =>
     prereq: c.prereq || null,
     unlock: c.unlock || null,
     blurb: c.blurb || "",
+    soon: c.soon || null,
     skills: c.skills || [],
     rev: c.rev || null,
     builtin: true,
@@ -873,7 +877,7 @@ const withBuiltins = (lib) => {
   contentCourses().forEach((cc) => {
     const have = courses.find((c) => c.id === cc.id);
     // saved copies of built-in courses pick up new level/track/gating metadata
-    if (have) ["level", "track", "prereq", "unlock", "blurb"].forEach((k) => { if (cc[k] != null) have[k] = cc[k]; });
+    if (have) ["level", "track", "prereq", "unlock", "blurb", "soon"].forEach((k) => { if (cc[k] != null) have[k] = cc[k]; });
     else if (!hidden.includes(cc.id)) courses.push(cc);
     // a revised built-in course refreshes the steps of its authored lessons
     // (matched by title, so moved lessons still match). Progress is keyed by
@@ -1521,6 +1525,12 @@ function Prexis() {
   const [selfChecks, setSelfChecks] = useState({});
   const [writeText, setWriteText] = useState("");
   const [writeResults, setWriteResults] = useState(null);
+  const [drafts, setDrafts] = useState({});
+  const [draftSub, setDraftSub] = useState(null); // { drawing, via } read from a file or share link
+  const [draftResults, setDraftResults] = useState(null);
+  const [draftInput, setDraftInput] = useState("");
+  const [draftMsg, setDraftMsg] = useState("");
+  const [draftSelf, setDraftSelf] = useState(false);
   const genAbortRef = useRef(null);
   const [cancelledKey, setCancelledKey] = useState(null);
   const [expandedId, setExpandedId] = useState("core-js");
@@ -1592,6 +1602,11 @@ function Prexis() {
     try {
       const r = await storage.get(PROJECT_KEY);
       if (r && r.value) setProject({ ...DEFAULT_PROJECT, ...JSON.parse(r.value) });
+    } catch (e) {}
+    setDrafts({});
+    try {
+      const rdr = await storage.get(DRAFTS_KEY);
+      if (rdr && rdr.value) setDrafts(JSON.parse(rdr.value) || {});
     } catch (e) {}
     {
       let loadedProgress = {};
@@ -1714,6 +1729,7 @@ function Prexis() {
   const persistSkills = async (next) => { setSkills(next); skillsRef.current = next; try { await storage.set(SKILLS_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistDeck = async (next) => { setDeck(next); deckRef.current = next; try { await storage.set(DECK_KEY, JSON.stringify(next)); } catch (e) {} };
   const persistProject = async (next) => { setProject(next); try { await storage.set(PROJECT_KEY, JSON.stringify(next)); } catch (e) {} };
+  const persistDrafts = async (next) => { setDrafts(next); try { await storage.set(DRAFTS_KEY, JSON.stringify(next)); return true; } catch (e) { return false; } };
 
   /* ---- backup: everything but API keys, as pasteable JSON ---- */
   const doExport = () => {
@@ -1727,6 +1743,7 @@ function Prexis() {
       skills,
       deck,
       project,
+      drafts,
       provider,
       modelId,
       claudeModel,
@@ -1751,13 +1768,14 @@ function Prexis() {
       if (d.library) persistLib(withBuiltins(d.library));
       if (d.prefs) persistPrefs({ ...DEFAULT_PREFS, ...d.prefs, onboarded: true });
       if (d.project) persistProject({ ...DEFAULT_PROJECT, ...d.project });
+      if (d.drafts && typeof d.drafts === "object") persistDrafts(d.drafts);
       if (d.skills) persistSkills(d.skills);
       if (Array.isArray(d.deck)) persistDeck(d.deck);
       if (d.sched && typeof d.sched === "object") persistSched(d.sched);
       if (d.provider) persistProvider(d.provider);
       if (d.modelId) persistModel(d.modelId);
       if (d.claudeModel) persistClaudeModel(d.claudeModel);
-      setBackupMsg("Imported. XP, courses, mastery and review deck restored on this device.");
+      setBackupMsg("Imported. XP, courses, mastery, review deck and prints restored on this device.");
     } catch (e) {
       setBackupMsg("That doesn't look like a Prexis backup (" + e.message + ").");
     }
@@ -1916,6 +1934,11 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setSelfChecks({});
     setWriteText(s && s.type === "write" ? s.starter || "" : "");
     setWriteResults(null);
+    setDraftSub(null);
+    setDraftResults(null);
+    setDraftInput("");
+    setDraftMsg("");
+    setDraftSelf(false);
     setRevealed(false);
     setElim([]);
     setRevealN(0);
@@ -2435,9 +2458,22 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
   };
 
   const step = lesson ? lesson.steps[idx] : null;
-  const gradedTypes = ["mcq", "numeric", "order", "output", "code", "build", "write"];
+  const gradedTypes = ["mcq", "numeric", "order", "output", "code", "build", "write", "draft"];
   const isGraded = step && gradedTypes.includes(step.type);
   const sharedControls = step && ["mcq", "numeric", "order", "output"].includes(step.type);
+
+  /* Draft steps link to Sovereign Draft with the starter in the #sd= hash.
+     The link is a real anchor (built once per step) so pop-up blockers and
+     phones treat it like any other link. */
+  const [draftUrl, setDraftUrl] = useState("");
+  useEffect(() => {
+    let live = true;
+    setDraftUrl("");
+    if (screen === "lesson" && step && step.type === "draft" && step.starter && DRAFT) {
+      DRAFT.starterUrl(step.starter).then((u) => { if (live) setDraftUrl(u); }).catch((e) => { if (live) setDraftMsg("Could not build the starter link in this browser (" + (e && e.message ? e.message : e) + "). Use the self check below."); });
+    }
+    return () => { live = false; };
+  }, [screen, idx, lesson]);
 
   const setMark = (i, v) => setMarks((m) => { const nx = [...m]; nx[i] = v; return nx; });
   const recordHints = (i) => setHintMarks((h) => { const nx = [...h]; nx[i] = hintN + retries; return nx; });
@@ -2503,6 +2539,77 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setChecked(true);
     setMark(idx, "wrong");
     setSTotal((x) => x + 1);
+  };
+
+  /* ---- draft steps: a drawing made in Sovereign Draft, checked here ---- */
+  const draftKey = () => (lessonSource && lessonSource.courseId !== undefined
+    ? lessonSource.courseId + ":" + lessonSource.u + ":" + lessonSource.l
+    : "free:" + (lesson ? lesson.title : "")) + ":" + idx;
+  const passDraft = async (sub, res, g, self) => {
+    feedback("right");
+    setChecked(true);
+    setCorrect(true);
+    setMark(idx, "right");
+    recordHints(idx);
+    setSTotal((x) => x + 1);
+    setLastGain(g);
+    recordGain(idx, g);
+    setSXp((x) => x + g);
+    setSRight((x) => x + 1);
+    const key = draftKey();
+    const prev = drafts[key];
+    // a self check never replaces a real drawing saved earlier
+    if (self && prev && prev.drawing) return;
+    const entry = {
+      savedAt: new Date().toISOString(),
+      courseId: lessonSource && lessonSource.courseId !== undefined ? lessonSource.courseId : null,
+      title: lesson ? lesson.title : "",
+      prompt: step.prompt || "",
+      stamp: step.stamp || "",
+      via: self ? "self" : sub.via,
+      checks: res.map((r) => ({ label: r.label, pass: !!r.pass })),
+      stats: sub ? DRAFT.stats(sub.drawing) : null,
+      drawing: sub ? DRAFT.compact(sub.drawing) : null,
+    };
+    const saved = await persistDrafts({ ...drafts, [key]: entry });
+    if (!saved) setDraftMsg("Passed, but this browser has no storage room left, so the drawing is not in My prints. Keep your .sdraft file.");
+  };
+  const submitDraft = async (text) => {
+    if (!DRAFT || checked) return;
+    setDraftMsg("");
+    let sub;
+    try { sub = await DRAFT.readSubmission(text); }
+    catch (e) { setDraftSub(null); setDraftResults(null); setDraftMsg(e && e.message ? e.message : String(e)); return; }
+    const res = DRAFT.runChecks(sub.drawing, step);
+    setDraftSub(sub);
+    setDraftResults(res);
+    if (res.length > 0 && res.every((r) => r.pass)) passDraft(sub, res, stepGain(), false);
+    else { feedback("wrong"); setRetries((r) => r + 1); }
+  };
+  const draftFile = async (file) => {
+    if (!file) return;
+    if (file.size > 2000000) { setDraftMsg("That file is over 2 MB, too big to keep in Prexis. Remove placed images in Sovereign Draft and save a copy again."); return; }
+    try { submitDraft(await file.text()); }
+    catch (e) { setDraftMsg("Could not read that file."); }
+  };
+  const draftDownload = (entry) => {
+    if (!entry || !entry.drawing) return;
+    const name = String(entry.title || "drawing").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "drawing";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(entry.drawing, null, 2)], { type: "application/json" }));
+    a.download = name + ".sdraft";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  };
+  const draftReopen = async (entry) => {
+    if (!DRAFT || !entry || !entry.drawing) return;
+    const win = window.open("about:blank", "_blank");
+    try {
+      const url = await DRAFT.starterUrl(entry.drawing);
+      if (win) { win.opener = null; win.location.href = url; }
+      else window.location.href = url;
+    } catch (e) { if (win) win.close(); }
   };
 
   const check = () => {
@@ -3319,6 +3426,57 @@ Respond with ONLY valid JSON: {"note":"..."}`,
           );
         })()}
 
+        {tab === "learn" && screen === "prints" && (
+          <div data-prints-screen="1">
+            <button className="mono" onClick={() => setScreen(activeCourseId ? "course" : "home")} style={{ background: "none", border: "none", padding: 0, marginTop: 24, color: "var(--pencil)", fontSize: 12 }}>← BACK</button>
+            <p className="kicker" style={{ marginTop: 18 }}>MY PRINTS</p>
+            <h1 className="display" style={{ fontWeight: 700, fontSize: 28, lineHeight: 1.12, margin: "6px 0 0" }}>Your drawings</h1>
+            <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 8 }}>
+              Every drawing that passed a draft step. They are kept on this device in this profile and go into your backup (Style tab). Reopen one in Sovereign Draft to keep working on it, or download the .sdraft file.
+            </p>
+            {(() => {
+              const order = (k) => {
+                const m = /^(.*):(\d+):(\d+):(\d+)$/.exec(k);
+                return m ? [m[1], Number(m[2]), Number(m[3]), Number(m[4])] : [k, 0, 0, 0];
+              };
+              const keys = Object.keys(drafts).filter((k) => drafts[k]).sort((a, b) => {
+                const x = order(a), y = order(b);
+                return x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : (x[1] - y[1]) || (x[2] - y[2]) || (x[3] - y[3]);
+              });
+              if (!keys.length) return (
+                <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 18 }}>
+                  No prints yet. Each Drafting lesson ends with a drawing you make in Sovereign Draft; when it passes its checks it lands here.
+                </p>
+              );
+              return keys.map((k) => {
+                const d = drafts[k];
+                const passed = (d.checks || []).filter((c) => c.pass).length;
+                return (
+                  <div key={k} className="card" data-print={k} style={{ marginTop: 14, padding: "12px 14px", boxShadow: "none" }}>
+                    <p className="kicker" style={{ margin: 0 }}>{String(d.title || "Drawing").toUpperCase()}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, margin: "4px 0 0" }}>{d.prompt}</p>
+                    {d.drawing && DRAFT ? (
+                      <div className="draft-preview" style={{ marginTop: 8, color: "var(--ink)" }} dangerouslySetInnerHTML={{ __html: DRAFT.previewSVG(d.drawing, d.stamp) }} />
+                    ) : (
+                      <p style={{ fontSize: 13, color: "var(--pencil)", margin: "8px 0 0" }}>Self checked. No drawing was brought back, so there is nothing to show.</p>
+                    )}
+                    <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "6px 0 0", lineHeight: 1.5 }}>
+                      {(d.savedAt || "").slice(0, 10)} · {d.via === "self" ? "SELF CHECK" : "CHECKED " + passed + "/" + (d.checks || []).length}
+                      {d.stats ? " · " + d.stats.entities + " OBJECTS · " + d.stats.solids + " SOLID" + (d.stats.solids === 1 ? "" : "S") : ""}
+                    </p>
+                    {d.drawing && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                        <button className="ghost" style={{ flex: 1, padding: "8px 10px", minWidth: 140 }} onClick={() => draftReopen(d)}>OPEN IN SOVEREIGN DRAFT</button>
+                        <button className="ghost" style={{ flex: 1, padding: "8px 10px", minWidth: 140 }} onClick={() => draftDownload(d)}>DOWNLOAD .SDRAFT</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        )}
+
         {tab === "learn" && screen === "workshop" && (
           <div>
             <button className="mono" onClick={() => setScreen(activeCourseId ? "course" : "home")} style={{ background: "none", border: "none", padding: 0, marginTop: 24, color: "var(--pencil)", fontSize: 12 }}>← BACK</button>
@@ -3399,6 +3557,14 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 MY SITE · OPEN THE WORKSHOP
               </button>
             )}
+            {activeCourse.units.some((un) => un.lessons.some((l) => (l.steps || []).some((st) => st.type === "draft"))) && (() => {
+              const n = Object.keys(drafts).filter((k) => k.indexOf(activeCourse.id + ":") === 0 && drafts[k] && drafts[k].drawing).length;
+              return (
+                <button className="ghost" data-prints="1" style={{ width: "100%", marginTop: 8, padding: "10px 12px" }} onClick={() => setScreen("prints")}>
+                  MY PRINTS · {n ? n + " DRAWING" + (n === 1 ? "" : "S") + " SAVED" : "YOUR DRAWINGS LAND HERE"}
+                </button>
+              );
+            })()}
             {activeCourse.units.map((u, ui) => (
               <div key={ui} style={{ marginTop: 24 }}>
                 <p className="kicker">UNIT {ui + 1} · {u.title.toUpperCase()}</p>
@@ -3426,8 +3592,8 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                           <div className="card" style={{ marginTop: 6, padding: "10px 12px", boxShadow: "none" }}>
                             <p className="mono" style={{ margin: 0, fontSize: 10, color: "var(--pencil)", letterSpacing: ".08em" }}>
                               {l.steps.length} STEPS · ~{Math.max(2, Math.round(l.steps.length * 0.7))} MIN
-                              {l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build", "write"].includes(st.type)).length > 0
-                                ? " · " + l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build", "write"].includes(st.type)).length + " GRADED"
+                              {l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build", "write", "draft"].includes(st.type)).length > 0
+                                ? " · " + l.steps.filter((st) => ["mcq", "numeric", "order", "output", "code", "build", "write", "draft"].includes(st.type)).length + " GRADED"
                                 : ""}
                               {score ? " · LAST " + score : ""}
                             </p>
@@ -3442,7 +3608,20 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 </div>
               </div>
             ))}
-            <p style={{ marginTop: 18, fontSize: 13, color: "var(--pencil)" }}>TODO lessons are generated in Studio.</p>
+            {(activeCourse.soon || []).map((su, k) => (
+              <div key={"soon" + k} style={{ marginTop: 24 }}>
+                <p className="kicker">UNIT {activeCourse.units.length + k + 1} · {String(su.title).toUpperCase()} · COMING SOON</p>
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(su.lessons || []).map((t, j) => (
+                    <div key={j} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--paper-2)", border: "1.5px dashed var(--box)", borderRadius: 6, padding: "12px 14px", color: "var(--pencil)" }}>
+                      <span style={{ fontSize: 15, fontWeight: 600 }}>{t}</span>
+                      <span className="mono" style={{ fontSize: 11 }}>SOON</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {!(activeCourse.soon || []).length && <p style={{ marginTop: 18, fontSize: 13, color: "var(--pencil)" }}>TODO lessons are generated in Studio.</p>}
           </div>
         )}
 
@@ -3636,6 +3815,131 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                       <p className="mono" style={{ fontSize: 11, color: "var(--margin)", marginTop: 8, lineHeight: 1.5 }}>
                         NOT YET. Fix the ✗ rows and check again. A pass is still worth {Math.max(3, 15 - 5 * hintN - 5 * retries)} XP.
                       </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step.type === "draft" && (
+              <div style={{ overflowWrap: "anywhere" }} data-draft-step="1">
+                <p className="kicker" style={{ marginTop: 4 }}>DRAFT · YOUR PRINT</p>
+                <h2 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.35, margin: "10px 0 0" }}>{step.prompt}</h2>
+                {step.body && <p style={{ fontSize: 15, lineHeight: 1.55, margin: "10px 0 0" }}>{step.body}</p>}
+                <p className="kicker" style={{ marginTop: 16 }}>TASKS</p>
+                <ol style={{ margin: "6px 0 0", paddingLeft: 20 }}>
+                  {(step.tasks || []).map((t, i) => <li key={i} style={{ fontSize: 14, lineHeight: 1.5, marginTop: 4 }}>{t}</li>)}
+                </ol>
+                {!checked && (
+                  <div>
+                    {draftUrl ? (
+                      <a className="primary" href={draftUrl} target="_blank" rel="noopener" data-starter="1"
+                        style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: 18, boxSizing: "border-box" }}>
+                        Open the starter in Sovereign Draft
+                      </a>
+                    ) : (
+                      <button className="primary" disabled style={{ marginTop: 18 }}>Preparing the starter</button>
+                    )}
+                    <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 8 }}>
+                      Opens a new tab with this lesson's starter drawing. Draw there, then come back to this tab. Sovereign Draft is free and needs no account.
+                    </p>
+                    <div className="card" data-dropzone="1" style={{ marginTop: 14, padding: "12px 14px", boxShadow: "none", borderStyle: "dashed" }}
+                      onDragOver={(e) => { e.preventDefault(); }}
+                      onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) draftFile(f); }}>
+                      <p className="kicker" style={{ margin: 0 }}>BRING YOUR DRAWING BACK</p>
+                      <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: "6px 0 0" }}>
+                        In Sovereign Draft open the Menu and tap Save a copy. Drop the .sdraft file here, or choose it.
+                      </p>
+                      <label className="ghost" style={{ display: "block", textAlign: "center", marginTop: 10, padding: "10px 12px", cursor: "pointer" }}>
+                        CHOOSE .SDRAFT FILE
+                        <input type="file" accept=".sdraft,.json,application/json" data-draft-file="1" style={{ display: "none" }}
+                          onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; draftFile(f); }} />
+                      </label>
+                      <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: "12px 0 0" }}>Or tap Menu, Copy share link, and paste it here:</p>
+                      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                        <input type="url" inputMode="url" value={draftInput} onChange={(e) => setDraftInput(e.target.value)} aria-label="Sovereign Draft share link"
+                          placeholder="https://sovereign-draft-one.vercel.app/#sd=..." data-draft-link="1"
+                          style={{ flex: 1, minWidth: 0, background: "var(--paper-2)", border: "1.5px solid var(--box)", borderRadius: 6, padding: "8px 10px", fontSize: 14 }} />
+                        <button className="ghost" style={{ padding: "8px 12px" }} disabled={!draftInput.trim()} onClick={() => submitDraft(draftInput)}>CHECK</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {draftMsg && <p role="alert" style={{ fontSize: 13.5, color: "var(--margin)", lineHeight: 1.5, marginTop: 12 }}>{draftMsg}</p>}
+                {draftSub && DRAFT && (
+                  <div style={{ marginTop: 14 }}>
+                    <p className="kicker" style={{ margin: 0 }}>YOUR DRAWING · {String(draftSub.drawing.name || "Untitled").toUpperCase().slice(0, 40)}</p>
+                    <div className="card draft-preview" style={{ marginTop: 6, padding: 10, boxShadow: "none", color: "var(--ink)" }}
+                      dangerouslySetInnerHTML={{ __html: DRAFT.previewSVG(draftSub.drawing, step.stamp) || "<p style=\"margin:0;font-size:13px\">No 2D lines to preview.</p>" }} />
+                    <p className="mono" style={{ fontSize: 11, color: "var(--pencil)", margin: "6px 0 0" }}>
+                      {(() => { const st = DRAFT.stats(draftSub.drawing); return st.entities + " OBJECTS · " + st.sheets + " SHEET" + (st.sheets === 1 ? "" : "S") + " · " + st.solids + " SOLID" + (st.solids === 1 ? "" : "S") + " · FROM " + (draftSub.via === "link" ? "SHARE LINK" : "FILE"); })()}
+                    </p>
+                  </div>
+                )}
+                {draftResults && (
+                  <div style={{ marginTop: 12 }} data-draft-results="1">
+                    {draftResults.map((r, i) => (
+                      <div key={i} style={{ marginTop: 6 }}>
+                        <p className="mono" style={{ fontSize: 12, margin: 0, lineHeight: 1.5, color: r.pass ? "var(--pen)" : "var(--margin)" }}>{r.pass ? "✓ " : "✗ "}{r.label}</p>
+                        {r.why ? <p style={{ fontSize: 12.5, margin: "2px 0 0 18px", lineHeight: 1.45, color: "var(--pencil)" }}>{r.why}</p> : null}
+                        {!r.pass && r.hint ? <p style={{ fontSize: 12.5, margin: "2px 0 0 18px", lineHeight: 1.45 }}>Try: {r.hint}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {checked ? (
+                  <div>
+                    <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 6, background: "var(--paper-2)", border: "1.5px solid var(--pen)" }}>
+                      <p className="mono" style={{ fontSize: 13, fontWeight: 600, color: "var(--pen)" }}>
+                        {draftSub ? "✓ DRAWING CHECKED" : "✓ SELF CHECKED"}<span className="hi" style={{ marginLeft: 8, padding: "1px 6px" }}>+{lastGain} XP</span>
+                      </p>
+                      <p style={{ marginTop: 6, fontSize: 14, lineHeight: 1.55 }}>{step.explain}</p>
+                      <p className="mono" style={{ marginTop: 8, fontSize: 11, color: "var(--pencil)" }}>
+                        {draftSub ? "SAVED TO MY PRINTS ON THIS DEVICE" : "SELF CHECKS SAVE NO DRAWING. BRING THE FILE BACK NEXT TIME TO KEEP IT IN MY PRINTS"}
+                      </p>
+                    </div>
+                    <button onClick={advance} className="primary" style={{ marginTop: 14 }}>{idx + 1 >= lesson.steps.length ? "Finish" : "Continue"}</button>
+                  </div>
+                ) : (
+                  <div>
+                    {draftResults && !draftResults.every((r) => r.pass) && (
+                      <p className="mono" style={{ fontSize: 11, color: "var(--margin)", marginTop: 10, lineHeight: 1.5 }}>
+                        NOT YET. Fix the ✗ rows in Sovereign Draft, save a copy again and bring the new file back. A pass is still worth {stepGain()} XP.
+                      </p>
+                    )}
+                    {(step.howto || []).length > 0 && hintN === 0 && (
+                      <button onClick={() => setHintN(1)} className="ghost" style={{ width: "100%", marginTop: 12, padding: "10px 12px" }}>SHOW HOW, STEP BY STEP (−5 XP)</button>
+                    )}
+                    {hintN > 0 && (
+                      <div className="hintbox" style={{ marginTop: 12 }}>
+                        <p className="kicker" style={{ margin: "0 0 6px" }}>HOW, STEP BY STEP</p>
+                        <ol style={{ margin: 0, paddingLeft: 20 }}>
+                          {(step.howto || []).map((t, i) => <li key={i} style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 4 }}>{t}</li>)}
+                        </ol>
+                      </div>
+                    )}
+                    {!draftSelf ? (
+                      <button className="mono" onClick={() => setDraftSelf(true)} style={{ background: "none", border: "none", padding: 0, marginTop: 14, color: "var(--pencil)", fontSize: 11, textDecoration: "underline", textAlign: "left" }}>
+                        CANNOT BRING THE FILE BACK? USE A SELF CHECK
+                      </button>
+                    ) : (
+                      <div className="card" style={{ marginTop: 14, padding: "12px 14px", boxShadow: "none" }}>
+                        <p className="kicker" style={{ margin: 0 }}>SELF CHECK</p>
+                        <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, margin: "4px 0 0" }}>
+                          For when Sovereign Draft cannot save or share on this device. Tick each task only after you have done it. A self check is worth 3 XP and keeps no drawing in My prints.
+                        </p>
+                        {(step.tasks || []).map((t, i) => (
+                          <label key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8, fontSize: 14, lineHeight: 1.45 }}>
+                            <input type="checkbox" checked={!!selfChecks[i]} onChange={(e) => setSelfChecks((m) => ({ ...m, [i]: e.target.checked }))} style={{ marginTop: 3 }} />
+                            <span>{t}</span>
+                          </label>
+                        ))}
+                        <button className="ghost" style={{ width: "100%", marginTop: 10, padding: "10px 12px" }}
+                          disabled={!(step.tasks || []).every((_, i) => selfChecks[i])}
+                          onClick={() => passDraft(null, (step.tasks || []).map((t) => ({ label: t, pass: true })), 3, true)}>
+                          I DID EVERY TASK (SELF CHECK, 3 XP)
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -3976,7 +4280,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
               <div style={{ marginTop: 26, textAlign: "left", maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
                 <p className="kicker">XP LEDGER</p>
                 {lesson.steps.map((s, i) => {
-                  if (!["mcq", "numeric", "order", "output", "code", "build", "write"].includes(s.type)) return null;
+                  if (!["mcq", "numeric", "order", "output", "code", "build", "write", "draft"].includes(s.type)) return null;
                   const m = marks[i];
                   const assists = hintMarks[i] || 0;
                   const label = (s.prompt || s.heading || s.type).slice(0, 36);
