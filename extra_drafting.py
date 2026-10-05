@@ -155,10 +155,10 @@ L2 = {"title": "Scale and the architect's ruler", "keywords": ["drafting", "scal
       "The starter is an empty plan with one sheet, A-1, set to 1/4''. Draw the room at its real size, then change the sheet's plot scale. The drawing does not change; the paper does.",
       ["Draw a closed rectangle 12'-0'' by 10'-0''.",
        "Set the plot scale of sheet A-1 to 1/2''.",
-       "Open the A-1 tab and see the room fill twice as much paper as it did at 1/4''."],
+       "Look at sheet A-1 and see the room fill twice as much paper as it did at 1/4''."],
       ["Type RECT and press Enter. Type 0,0 and Enter, then 12,10 and Enter.",
-       "Tap the A-1 tab at the top to open the sheet.",
-       "Open the Menu (top right), tap Sheet set, and tap 1/2'' under Plot scale.",
+       "Open the Menu (top right) and tap Sheet set. Tap 1/2'' under Plot scale.",
+       "To look at the sheet, tap A-1 Floor Plan in the Sheet set list (on a wide screen the A-1 tab at the top works too).",
        SAVE],
       starter("Storage room starter", "PREXIS-L02", [
           {"type": "text", "layer": "NOTES", "x": 0, "y": -2, "size": 0.5, "content": "STORAGE ROOM"},
@@ -167,7 +167,7 @@ L2 = {"title": "Scale and the architect's ruler", "keywords": ["drafting", "scal
       "PREXIS-L02",
       [chk("A closed rectangle 12'-0'' x 10'-0'' at full size", "Type RECT, then 0,0 and 12,10. Draw the real size, not the paper size.",
            rect={"w": 12, "h": 10, "tol": 0.042}),
-       chk("A sheet plots at 1/2'' = 1'-0''", "Open the A-1 tab, then Menu, Sheet set, and tap 1/2'' under Plot scale.",
+       chk("A sheet plots at 1/2'' = 1'-0''", "Open the Menu (top right), tap Sheet set, and tap 1/2'' under Plot scale.",
            scale=36)],
       "Same drawing, twice the paper. That is why you never draw at paper size: the scale is a setting on the sheet, and changing it costs one tap."),
 ]}
@@ -211,7 +211,7 @@ L3 = {"title": "Sheets, title blocks and lettering", "keywords": ["drafting", "s
        "Type T and Enter, tap just under the room, type FLOOR PLAN and tap Place text.",
        "Type T and Enter again, tap below the title, type your note and tap Place text.",
        "Tap SELECT, tap your note, tap the Layer chip, then tap NOTES.",
-       "Tap the A-1 tab, open the Menu, tap Sheet set, and tap Tabloid under Sheet size.",
+       "Open the Menu, tap Sheet set, and tap Tabloid under Sheet size.",
        SAVE],
       starter("Storage room sheet starter", "PREXIS-L03", [
           {"type": "poly", "layer": "WALLS", "closed": True, "pts": [[0, 0], [12, 0], [12, 10], [0, 10]]},
@@ -226,7 +226,7 @@ L3 = {"title": "Sheets, title blocks and lettering", "keywords": ["drafting", "s
            count={"type": ["text", "mtext"], "text": "floor\\s*plan"}, min=1, noun="texts that read FLOOR PLAN"),
        chk("A general note of four or more words is on the NOTES layer", "New text lands on the TEXT layer. Tap SELECT, tap your note, tap the Layer chip, then NOTES. A note needs at least four words.",
            count={"type": ["text", "mtext"], "layer": "NOTES", "minWords": 4}, min=1, noun="notes of four or more words on NOTES"),
-       chk("The sheet is Tabloid (11 x 17)", "Tap the A-1 tab, then Menu, Sheet set, and tap Tabloid under Sheet size.",
+       chk("The sheet is Tabloid (11 x 17)", "Open the Menu (top right), tap Sheet set, and tap Tabloid under Sheet size.",
            sheet="tabloid")],
       "Now the sheet can travel without you: it says what it is, who stands behind it and how big the paper is. That is the difference between a drawing and a print."),
 ]}
