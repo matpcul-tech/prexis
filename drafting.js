@@ -422,8 +422,20 @@
   function previewSVG(o, stampLayer) {
     var hide = (o.layers || []).filter(function (L) { return L && (L.visible === false || L.plot === false); }).map(function (L) { return L.name; });
     var ents = (o.entities || []).filter(function (e) { return e && hide.indexOf(e.layer) < 0 && e.layer !== stampLayer && ["line", "poly", "circle", "arc", "ellipse", "text", "mtext", "dim", "hatch"].indexOf(e.type) >= 0; });
-    var b = bboxOf(ents.filter(function (e) { return e.type !== "text" && e.type !== "mtext"; }));
-    if (!isFinite(b[0])) b = bboxOf(ents);
+    /* Frame the geometry and the lettering near it (titles, notes). Text
+       far from the drawing would shrink it to a dot, so if the lettering
+       more than doubles the frame either way, frame the geometry alone. */
+    var geo = bboxOf(ents.filter(function (e) { return e.type !== "text" && e.type !== "mtext"; }));
+    var b = geo.slice();
+    ents.forEach(function (e) {
+      if (e.type !== "text" && e.type !== "mtext") return;
+      var size = Math.max(num(e.size) || num(e.h) || 0.5, 0.2);
+      var ls = textOf(e).split(/\n|\\P/).slice(0, 6);
+      var wide = Math.max.apply(null, ls.map(function (t) { return Math.min(t.length, 80); })) * size * 0.62;
+      var tx0 = num(e.x), ty1 = num(e.y) + size, ty0 = num(e.y) - (ls.length - 1) * size * 1.3 - size * 0.25;
+      b = [Math.min(b[0], tx0), Math.min(b[1], ty0), Math.max(b[2], tx0 + wide), Math.max(b[3], ty1)];
+    });
+    if (isFinite(geo[0]) && ((b[2] - b[0]) > 2 * Math.max(geo[2] - geo[0], 1) || (b[3] - b[1]) > 2 * Math.max(geo[3] - geo[1], 1))) b = geo;
     if (!isFinite(b[0])) return "";
     var pad = Math.max(b[2] - b[0], b[3] - b[1], 1) * 0.08;
     var x0 = b[0] - pad, y0 = b[1] - pad, w = b[2] - b[0] + pad * 2, h = b[3] - b[1] + pad * 2;
