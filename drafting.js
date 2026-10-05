@@ -320,7 +320,8 @@
       var n = ents.filter(function (e) { return matches(e, c.count, stamp); }).length;
       var lo = c.min == null ? 1 : c.min, hi = c.max == null ? Infinity : c.max;
       r.pass = n >= lo && n <= hi;
-      r.why = r.pass ? "Found " + n + "." : (n < lo ? "Found " + n + ", need " + (hi === lo ? "exactly " : "at least ") + lo + "." : "Found " + n + ", the most allowed is " + hi + ".");
+      var what = "Found " + n + (c.noun ? " " + c.noun : "");
+      r.why = r.pass ? what + "." : (n < lo ? what + ", need " + (hi === lo ? "exactly " : "at least ") + lo + "." : what + (hi === 0 ? ", and there should be none." : ", the most allowed is " + hi + "."));
       return r;
     }
     if (c.rect) {
