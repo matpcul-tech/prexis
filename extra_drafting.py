@@ -44,7 +44,11 @@ def starter(name, stamp, entities, note, at, extra_layers=()):
     ents = list(entities)
     for i, line in enumerate(note):
         ents.append({"type": "text", "layer": stamp, "x": at[0], "y": at[1] - i * 0.6, "size": 0.35, "content": line})
-    return {"app": "sovereign-draft", "v": 7, "name": name, "layers": layers, "entities": ents, "space": "model"}
+    # Sovereign Draft selects, edits and undoes by entity id and passes a
+    # file's entities through untouched, so a starter must number them.
+    ents = [dict(e, id=i + 1) for i, e in enumerate(ents)]
+    return {"app": "sovereign-draft", "v": 7, "name": name, "layers": layers, "entities": ents,
+            "idSeq": len(ents) + 1, "space": "model"}
 
 
 def ln(x1, y1, x2, y2, layer="WALLS", **kw):
