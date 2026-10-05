@@ -2556,6 +2556,8 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     recordGain(idx, g);
     setSXp((x) => x + g);
     setSRight((x) => x + 1);
+    // a self check after a failed file shows as a self check, not as that file
+    if (self) { setDraftSub(null); setDraftResults(null); }
     const key = draftKey();
     const prev = drafts[key];
     // a self check never replaces a real drawing saved earlier
