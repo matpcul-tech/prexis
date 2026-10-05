@@ -1,0 +1,411 @@
+{
+ "app": "sovereign-draft",
+ "v": 7,
+ "name": "Hill storage room",
+ "firm": {
+  "company": "Culwell Drafting",
+  "copyright": "",
+  "drawnBy": ""
+ },
+ "revisions": [],
+ "idSeq": 6,
+ "gSeq": 1,
+ "layers": [
+  {
+   "name": "WALLS",
+   "color": "#d4a843",
+   "aci": 2,
+   "visible": true
+  },
+  {
+   "name": "DOORS",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "FIXTURES",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true
+  },
+  {
+   "name": "DIMS",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "TEXT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "HATCH",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "CENTER",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "SCHEDULES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "UNDERLAY",
+   "color": "#4a5a73",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "ROOMS",
+   "color": "#4ade80",
+   "aci": 3,
+   "visible": true
+  },
+  {
+   "name": "GRID",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "DEFPOINTS",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "SECTION",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "GDT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "NOTES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "PREXIS-L03",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  }
+ ],
+ "entities": [
+  {
+   "type": "poly",
+   "layer": "WALLS",
+   "closed": true,
+   "pts": [
+    [
+     0,
+     0
+    ],
+    [
+     12,
+     0
+    ],
+    [
+     12,
+     10
+    ],
+    [
+     0,
+     10
+    ]
+   ],
+   "id": 1
+  },
+  {
+   "type": "text",
+   "layer": "PREXIS-L03",
+   "x": 0,
+   "y": 13,
+   "size": 0.35,
+   "content": "PREXIS L03: name the project, fill in Issued by, title the drawing FLOOR PLAN,",
+   "id": 2
+  },
+  {
+   "type": "text",
+   "layer": "PREXIS-L03",
+   "x": 0,
+   "y": 12.4,
+   "size": 0.35,
+   "content": "add a general note on NOTES, switch the sheet to Tabloid. This note does not print.",
+   "id": 3
+  },
+  {
+   "type": "text",
+   "layer": "TEXT",
+   "x": 3,
+   "y": -2,
+   "size": 1.2,
+   "content": "FLOOR PLAN",
+   "id": 4
+  },
+  {
+   "type": "text",
+   "layer": "NOTES",
+   "x": 0,
+   "y": -4,
+   "size": 1.2,
+   "content": "VERIFY ALL DIMENSIONS IN FIELD",
+   "id": 5
+  }
+ ],
+ "userBlocks": [],
+ "dimStyles": [
+  {
+   "name": "ARCH",
+   "textHeight": 0.8,
+   "offset": 2,
+   "ext": 0.3,
+   "arrow": "tick",
+   "tickSize": 0.4,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "ARROW",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.45,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "DECIMAL",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.4,
+   "precision": "decimal",
+   "layer": "DIMS",
+   "continueGap": 0
+  }
+ ],
+ "currentDimStyle": "ARCH",
+ "textStyles": [
+  {
+   "name": "STANDARD",
+   "font": "sans",
+   "widthFactor": 1
+  },
+  {
+   "name": "ROMANS",
+   "font": "serif",
+   "widthFactor": 0.9
+  },
+  {
+   "name": "NOTES",
+   "font": "sans",
+   "widthFactor": 0.9,
+   "height": 0.5
+  },
+  {
+   "name": "TITLE",
+   "font": "sans",
+   "widthFactor": 1,
+   "bold": true,
+   "height": 1
+  },
+  {
+   "name": "MONO",
+   "font": "mono",
+   "widthFactor": 1
+  }
+ ],
+ "currentTextStyle": "STANDARD",
+ "plotStyles": [
+  {
+   "name": "ISO",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13
+    },
+    "ROOMS": {
+     "lw": 0.13
+    },
+    "GRID": {
+     "lw": 0.13
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  },
+  {
+   "name": "CHECK",
+   "entries": {},
+   "fallback": {
+    "lw": 0.18,
+    "screen": 100
+   }
+  },
+  {
+   "name": "SCREENED",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "ROOMS": {
+     "lw": 0.13,
+     "screen": 60
+    },
+    "GRID": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  }
+ ],
+ "currentPlotStyle": "ISO",
+ "layerStates": [],
+ "annoPpf": 18,
+ "scripts": [],
+ "materials": {},
+ "sun": null,
+ "views3d": [],
+ "solids": [],
+ "layouts": [
+  {
+   "id": "A1",
+   "name": "A-1 Floor Plan",
+   "sheet": "tabloid",
+   "ppf": 18,
+   "titleBlock": true,
+   "viewports": [
+    {
+     "px": 0.5,
+     "py": 2.15,
+     "pw": 16,
+     "ph": 8.35,
+     "mx": 10.752756,
+     "my": 4.675,
+     "ppf": 27
+    }
+   ],
+   "sheetNumber": "A-1",
+   "annotations": []
+  }
+ ],
+ "currentLayout": "A1",
+ "space": "A1",
+ "constraints": [],
+ "dxfVer": "R12",
+ "units": "ft",
+ "storyHeight": 8,
+ "heightAssumed": true
+}

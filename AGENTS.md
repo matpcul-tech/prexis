@@ -14,7 +14,7 @@ Open http://localhost:8765/. The player (`app.jsx`) and `content_extra.js` are c
 
 - `index.html`: shell; loads `content.js`, then `content_extra.js`, then `master.js`, then `drafting.js`, then `app.jsx` (order matters)
 - `master.js`: Master level, endless practice and project generators plus the SM-2 scheduler (`window.PREXIS_MASTER`). Plain JavaScript, hand-edited, no build. Every generated answer must be computed by its generator.
-- `drafting.js`: the bridge to Sovereign Draft (`window.PREXIS_DRAFT`): share link codec, .sdraft and share link reader, drawing checks for `draft` steps, SVG preview. Plain JavaScript, hand-edited, no build. Also loads in Node (`module.exports`) for tests.
+- `drafting.js`: the bridge to Sovereign Draft (`window.PREXIS_DRAFT`): share link codec, .sdraft and share link reader, drawing checks for `draft` steps, SVG preview. Plain JavaScript, hand-edited, no build. Also loads in Node (`module.exports`) for tests: run `node tests/drafting-checks.js` after touching drafting.js or extra_drafting.py. Its fixtures are real .sdraft saves from Sovereign Draft (each lesson done right and done wrong).
 - `app.jsx`: the player. Edit it directly.
 - `content.js`: original 67 lessons
 - `content_extra.js`: extra tracks plus course metadata overlay. Regenerate with `python3 build_library.py` after editing `extra_*.py`; do not hand-edit both.
