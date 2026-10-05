@@ -61,7 +61,8 @@
   }
 
   async function starterUrl(project, base) {
-    return (base || SD_URL) + "#sd=" + (await encodeShare(JSON.stringify(project)));
+    /* api.SD_URL, so a test or a self-hosted copy can point at its own build */
+    return (base || api.SD_URL || SD_URL) + "#sd=" + (await encodeShare(JSON.stringify(project)));
   }
 
   /* A share link, a bare hash, or a raw token. Gzip always starts H4sI. */
