@@ -44,7 +44,8 @@ const ONLY = process.argv[2] ? process.argv[2].split(",") : null;
     ok(back.via === "link" && JSON.stringify(back.drawing) === JSON.stringify(st.starter), n + " starter survives a share link round trip");
 
     const good = await D.readSubmission(fs.readFileSync(path.join(__dirname, "fixtures", n + "-good.sdraft"), "utf8"));
-    const g = D.runChecks(good.drawing, st);
+    const selfAll = {}; st.checks.forEach((c) => { if (c.confirm) selfAll[c.label] = true; });
+    const g = D.runChecks(good.drawing, st, selfAll);
     ok(g.every((r) => r.pass), n + " real Sovereign Draft drawing done right passes (" + g.filter((r) => !r.pass).map((r) => r.label + ": " + r.why).join("; ") + ")");
 
     const bad = await D.readSubmission(fs.readFileSync(path.join(__dirname, "fixtures", n + "-bad.sdraft"), "utf8"));

@@ -1528,6 +1528,7 @@ function Prexis() {
   const [drafts, setDrafts] = useState({});
   const [draftSub, setDraftSub] = useState(null); // { drawing, via } read from a file or share link
   const [draftResults, setDraftResults] = useState(null);
+  const [draftConfirm, setDraftConfirm] = useState({}); // self checks a drawing cannot prove, keyed by check label
   const [draftInput, setDraftInput] = useState("");
   const [draftMsg, setDraftMsg] = useState("");
   const [draftSelf, setDraftSelf] = useState(false);
@@ -1939,6 +1940,7 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     setDraftInput("");
     setDraftMsg("");
     setDraftSelf(false);
+    setDraftConfirm({});
     setRevealed(false);
     setElim([]);
     setRevealN(0);
@@ -2582,11 +2584,22 @@ Respond with ONLY valid JSON, no fences: {"variants":[{"i":0,"step":{...}}]}`,
     let sub;
     try { sub = await DRAFT.readSubmission(text); }
     catch (e) { setDraftSub(null); setDraftResults(null); setDraftMsg(e && e.message ? e.message : String(e)); return; }
-    const res = DRAFT.runChecks(sub.drawing, step);
+    const res = DRAFT.runChecks(sub.drawing, step, draftConfirm);
     setDraftSub(sub);
     setDraftResults(res);
     if (res.length > 0 && res.every((r) => r.pass)) passDraft(sub, res, stepGain(), false);
     else { feedback("wrong"); setRetries((r) => r + 1); }
+  };
+  /* Ticking a self check re-grades the drawing already brought back, so
+     the learner does not have to drop the same file twice. */
+  const toggleDraftConfirm = (label, on) => {
+    const next = { ...draftConfirm, [label]: on };
+    setDraftConfirm(next);
+    if (draftSub && !checked && DRAFT) {
+      const res = DRAFT.runChecks(draftSub.drawing, step, next);
+      setDraftResults(res);
+      if (res.length > 0 && res.every((r) => r.pass)) passDraft(draftSub, res, stepGain(), false);
+    }
   };
   const draftFile = async (file) => {
     if (!file) return;
@@ -3845,6 +3858,18 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                     <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, marginTop: 8 }}>
                       Opens a new tab with this lesson's starter drawing. Draw there, then come back to this tab. Sovereign Draft is free and needs no account.
                     </p>
+                    {(step.checks || []).some((c) => c.confirm) && (
+                      <div className="card" data-draft-confirm="1" style={{ marginTop: 14, padding: "12px 14px", boxShadow: "none" }}>
+                        <p className="kicker" style={{ margin: 0 }}>YOU CHECK THIS PART</p>
+                        <p style={{ fontSize: 12.5, color: "var(--pencil)", lineHeight: 1.5, margin: "4px 0 0" }}>The drawing file cannot show these, so tick them yourself once they are true.</p>
+                        {(step.checks || []).filter((c) => c.confirm).map((c, i) => (
+                          <label key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8, fontSize: 14, lineHeight: 1.45 }}>
+                            <input type="checkbox" checked={!!draftConfirm[c.label]} onChange={(e) => toggleDraftConfirm(c.label, e.target.checked)} style={{ marginTop: 3 }} />
+                            <span><span className="mono" style={{ fontSize: 10.5, color: "var(--pencil)", letterSpacing: ".06em" }}>SELF CHECK · </span>{c.label}{c.hint ? <span style={{ display: "block", fontSize: 12.5, color: "var(--pencil)" }}>{c.hint}</span> : null}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                     <div className="card" data-dropzone="1" style={{ marginTop: 14, padding: "12px 14px", boxShadow: "none", borderStyle: "dashed" }}
                       onDragOver={(e) => { e.preventDefault(); }}
                       onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) draftFile(f); }}>

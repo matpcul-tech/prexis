@@ -322,7 +322,7 @@
   function oneCheck(o, c, stamp, self) {
     var ents = o.entities || [];
     var r = { label: c.label, hint: c.hint || "", pass: false, why: "" };
-    if (c.confirm) { r.pass = !!self; r.self = true; return r; }
+    if (c.confirm) { r.pass = !!self; r.self = true; r.why = self ? "You checked this." : "Tick it under You check this part once it is true."; return r; }
     if (c.count) {
       var hitList = ents.filter(function (e) { return matches(e, c.count, stamp); });
       var n = hitList.length;
@@ -415,7 +415,7 @@
   }
   function sheetLabel(L) { return String((L && (L.name || L.sheetNumber)) || "a sheet"); }
   function sheetMatches(L, rx) {
-    var t = [L.name, L.sheetNumber, L.kind].concat((L.viewports || []).map(function (v) { return v.name; })).join(" ");
+    var t = [L.name, L.sheetNumber].concat((L.viewports || []).map(function (v) { return v.name; })).join(" ");
     return rx.test(t);
   }
   /* Vertical faces of a mesh that stand clear of its outer edges: a dormer
@@ -431,9 +431,14 @@
       var nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx, nl = Math.hypot(nx, ny, nz);
       if (nl < 1e-9 || Math.abs(nz / nl) > 0.05) return;
       var zs = [a[2], b[2], c[2]], span = Math.max.apply(null, zs) - Math.min.apply(null, zs);
-      if (span < 1) return;
-      if (Math.abs(nx) >= Math.abs(ny)) { var x = (a[0] + b[0] + c[0]) / 3; if (x > lo[0] + 1 && x < hi[0] - 1) n++; }
-      else { var y = (a[1] + b[1] + c[1]) / 3; if (y > lo[1] + 1 && y < hi[1] - 1) n++; }
+      /* a real wall face: some size, a foot or more tall, every corner on
+         one vertical plane (thin slivers of a slope can fake a normal) */
+      if (span < 1 || nl / 2 < 0.25) return;
+      var k = Math.abs(nx) >= Math.abs(ny) ? 0 : 1;
+      var cs = [a[k], b[k], c[k]];
+      if (Math.max.apply(null, cs) - Math.min.apply(null, cs) > 0.05) return;
+      var m = (cs[0] + cs[1] + cs[2]) / 3;
+      if (m > lo[k] + 1 && m < hi[k] - 1) n++;
     });
     return n;
   }
