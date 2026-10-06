@@ -98,7 +98,7 @@ All progress, preferences, mastery and the review deck persist locally. Sharing 
 
 ## Step types
 
-`concept` · `worked` · `mcq` · `numeric` · `order` · `output` (predict what code prints, and it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve) · `build` (grow My Site, graded from the rendered page, including measured contrast, sizes and element counts) · `write` (free text practice checked for length, sentence length, required and banned phrases, a real rewrite of the draft, and self checks, with a model answer) · `draft` (Drafting track only: draw in Sovereign Draft from the lesson's starter, bring the .sdraft file or share link back, and the drawing data is checked for line types, weights, sizes, scale, sheet, title block and views; passing drawings are saved to My prints)
+`concept` · `worked` · `mcq` · `numeric` · `order` · `output` (predict what code prints, and it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve) · `build` (grow My Site, graded from the rendered page, including measured contrast, sizes and element counts) · `write` (free text practice checked for length, sentence length, required and banned phrases, a real rewrite of the draft, and self checks, with a model answer) · `draft` (Drafting track only: draw in Sovereign Draft from the lesson's starter, bring the .sdraft file or share link back, and the drawing data is checked for line types, weights, sizes, scale, sheet, title block and views, and in the cabin lessons for walls, openings, dimensions, room names and areas, schedules, the 3D model, the section cut and the print set; passing drawings are saved to My prints)
 
 ## Agents
 

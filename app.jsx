@@ -854,6 +854,7 @@ const contentCourses = () =>
     unlock: c.unlock || null,
     blurb: c.blurb || "",
     soon: c.soon || null,
+    complete: !!c.complete,
     skills: c.skills || [],
     rev: c.rev || null,
     builtin: true,
@@ -3636,7 +3637,7 @@ Respond with ONLY valid JSON: {"note":"..."}`,
                 </div>
               </div>
             ))}
-            {!(activeCourse.soon || []).length && <p style={{ marginTop: 18, fontSize: 13, color: "var(--pencil)" }}>TODO lessons are generated in Studio.</p>}
+            {!(activeCourse.soon || []).length && !activeCourse.complete && <p style={{ marginTop: 18, fontSize: 13, color: "var(--pencil)" }}>TODO lessons are generated in Studio.</p>}
           </div>
         )}
 

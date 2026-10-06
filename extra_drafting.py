@@ -717,7 +717,7 @@ def _inches(v):
 def add(courses, picks):
     courses.append(_inches({
         "id": "drafting", "subject": "Drafting", "level": "Beginner", "title": "Drafting from scratch",
-        "track": "drafting", "rev": "2026-10-06",
+        "track": "drafting", "rev": "2026-10-06", "complete": True,
         "blurb": "Line types, scale, sheets and views, then a 24 x 36 cabin from walls to a full print set. Every lesson ends with a drawing you make in Sovereign Draft.",
         "units": [{"title": "Read the page", "lessons": [L1, L2, L3, L4]},
                   {"title": "Plan a room", "lessons": [L5, L6, L7, L8]},
