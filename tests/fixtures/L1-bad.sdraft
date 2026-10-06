@@ -1,0 +1,454 @@
+{
+ "app": "sovereign-draft",
+ "v": 7,
+ "name": "Pier cap starter",
+ "firm": {
+  "company": "",
+  "copyright": "",
+  "drawnBy": ""
+ },
+ "revisions": [],
+ "idSeq": 11,
+ "gSeq": 1,
+ "layers": [
+  {
+   "name": "WALLS",
+   "color": "#d4a843",
+   "aci": 2,
+   "visible": true
+  },
+  {
+   "name": "DOORS",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "FIXTURES",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true
+  },
+  {
+   "name": "DIMS",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "TEXT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "HATCH",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "CENTER",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "SCHEDULES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "UNDERLAY",
+   "color": "#4a5a73",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "ROOMS",
+   "color": "#4ade80",
+   "aci": 3,
+   "visible": true
+  },
+  {
+   "name": "GRID",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "DEFPOINTS",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "SECTION",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "GDT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "NOTES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "PREXIS-L01",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  }
+ ],
+ "entities": [
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "x1": 0,
+   "y1": 0,
+   "x2": 6,
+   "y2": 0,
+   "id": 1,
+   "lw": 0.5
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "x1": 6,
+   "y1": 0,
+   "x2": 6,
+   "y2": 3,
+   "id": 2,
+   "lw": 0.5
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "x1": 6,
+   "y1": 3,
+   "x2": 0,
+   "y2": 3,
+   "id": 3,
+   "lw": 0.5
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "x1": 0,
+   "y1": 3,
+   "x2": 0,
+   "y2": 0,
+   "id": 4,
+   "lw": 0.5
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "x1": 2.5,
+   "y1": 0,
+   "x2": 2.5,
+   "y2": 3,
+   "id": 5,
+   "lw": 0.5,
+   "lt": "HIDDEN"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "x1": 3.5,
+   "y1": 0,
+   "x2": 3.5,
+   "y2": 3,
+   "id": 6,
+   "lw": 0.5,
+   "lt": "HIDDEN"
+  },
+  {
+   "type": "text",
+   "layer": "NOTES",
+   "x": 0,
+   "y": -1.6,
+   "size": 0.35,
+   "content": "PIER CAP, FRONT VIEW",
+   "id": 7
+  },
+  {
+   "type": "text",
+   "layer": "PREXIS-L01",
+   "x": 0,
+   "y": 5.2,
+   "size": 0.35,
+   "content": "PREXIS L01: make the sleeve lines HIDDEN, add a CENTER line at X 3'-0\",",
+   "id": 8
+  },
+  {
+   "type": "text",
+   "layer": "PREXIS-L01",
+   "x": 0,
+   "y": 4.6000000000000005,
+   "size": 0.35,
+   "content": "make the outline 0.50 mm or heavier. This note does not print.",
+   "id": 9
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "x1": 3,
+   "y1": 0,
+   "x2": 3,
+   "y2": 3,
+   "lt": "CENTER",
+   "lw": 0.5,
+   "id": 10
+  }
+ ],
+ "userBlocks": [],
+ "dimStyles": [
+  {
+   "name": "ARCH",
+   "textHeight": 0.8,
+   "offset": 2,
+   "ext": 0.3,
+   "arrow": "tick",
+   "tickSize": 0.4,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "ARROW",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.45,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "DECIMAL",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.4,
+   "precision": "decimal",
+   "layer": "DIMS",
+   "continueGap": 0
+  }
+ ],
+ "currentDimStyle": "ARCH",
+ "textStyles": [
+  {
+   "name": "STANDARD",
+   "font": "sans",
+   "widthFactor": 1
+  },
+  {
+   "name": "ROMANS",
+   "font": "serif",
+   "widthFactor": 0.9
+  },
+  {
+   "name": "NOTES",
+   "font": "sans",
+   "widthFactor": 0.9,
+   "height": 0.5
+  },
+  {
+   "name": "TITLE",
+   "font": "sans",
+   "widthFactor": 1,
+   "bold": true,
+   "height": 1
+  },
+  {
+   "name": "MONO",
+   "font": "mono",
+   "widthFactor": 1
+  }
+ ],
+ "currentTextStyle": "STANDARD",
+ "plotStyles": [
+  {
+   "name": "ISO",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13
+    },
+    "ROOMS": {
+     "lw": 0.13
+    },
+    "GRID": {
+     "lw": 0.13
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  },
+  {
+   "name": "CHECK",
+   "entries": {},
+   "fallback": {
+    "lw": 0.18,
+    "screen": 100
+   }
+  },
+  {
+   "name": "SCREENED",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "ROOMS": {
+     "lw": 0.13,
+     "screen": 60
+    },
+    "GRID": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  }
+ ],
+ "currentPlotStyle": "ISO",
+ "layerStates": [],
+ "annoPpf": 18,
+ "scripts": [],
+ "materials": {},
+ "sun": null,
+ "views3d": [],
+ "solids": [],
+ "layouts": [
+  {
+   "id": "A1",
+   "name": "A-1 Floor Plan",
+   "sheet": "archd",
+   "ppf": 18,
+   "titleBlock": true,
+   "viewports": [
+    {
+     "px": 0.5,
+     "py": 2.15,
+     "pw": 35,
+     "ph": 21.35,
+     "mx": 0,
+     "my": 0,
+     "ppf": 18,
+     "id": 1,
+     "name": "PLAN",
+     "drawingType": "plan"
+    }
+   ],
+   "sheetNumber": "A-1",
+   "annotations": []
+  }
+ ],
+ "currentLayout": "A1",
+ "space": "model",
+ "constraints": [],
+ "dxfVer": "R12",
+ "units": "ft",
+ "storyHeight": 8,
+ "heightAssumed": true
+}

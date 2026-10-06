@@ -1,0 +1,1629 @@
+{
+ "app": "sovereign-draft",
+ "v": 7,
+ "name": "Cabin openings starter",
+ "firm": {
+  "company": "",
+  "copyright": "",
+  "drawnBy": ""
+ },
+ "revisions": [],
+ "idSeq": 88,
+ "gSeq": 7,
+ "layers": [
+  {
+   "name": "WALLS",
+   "color": "#d4a843",
+   "aci": 2,
+   "visible": true
+  },
+  {
+   "name": "DOORS",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "FIXTURES",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true
+  },
+  {
+   "name": "DIMS",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "TEXT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "HATCH",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "CENTER",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "SCHEDULES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "UNDERLAY",
+   "color": "#4a5a73",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "ROOMS",
+   "color": "#4ade80",
+   "aci": 3,
+   "visible": true
+  },
+  {
+   "name": "GRID",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "DEFPOINTS",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "SECTION",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "GDT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "NOTES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "PREXIS-L07",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  }
+ ],
+ "entities": [
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 0.25,
+   "y1": 10.25,
+   "x2": 14,
+   "y2": 10.25,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 10,
+    "x2": 14,
+    "y2": 10,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g6",
+   "id": 5
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 0.25,
+   "y1": 9.75,
+   "x2": 14,
+   "y2": 9.75,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 10,
+    "x2": 14,
+    "y2": 10,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g6",
+   "id": 6
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 0.25,
+   "y1": 10.25,
+   "x2": 0.25,
+   "y2": 9.75,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 10,
+    "x2": 14,
+    "y2": 10,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g6",
+   "id": 7
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 14,
+   "y1": 10.25,
+   "x2": 14,
+   "y2": 9.75,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 10,
+    "x2": 14,
+    "y2": 10,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g6",
+   "id": 8
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 0.5,
+   "y1": 23.75,
+   "x2": 0.5,
+   "y2": 10.249999999999998,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 17
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 0,
+   "y1": 23.75,
+   "x2": 0,
+   "y2": 10.249999999999998,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 18
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 0.5,
+   "y1": 10.249999999999998,
+   "x2": 0,
+   "y2": 10.249999999999998,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 19
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 0.5,
+   "y1": 9.75,
+   "x2": 0,
+   "y2": 9.75,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 20
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 0.5,
+   "y1": 9.75,
+   "x2": 0.5,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 21
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 0,
+   "y1": 9.75,
+   "x2": 0,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 22
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 0.5,
+   "y1": 23.75,
+   "x2": 0,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 23
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 0.5,
+   "y1": 0.25,
+   "x2": 0,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4",
+   "id": 24
+  },
+  {
+   "type": "room",
+   "layer": "ROOMS",
+   "name": "ROOM 1",
+   "pts": [
+    [
+     35.51,
+     0.49
+    ],
+    [
+     35.51,
+     23.51
+    ],
+    [
+     14.25,
+     23.51
+    ],
+    [
+     14.25,
+     10
+    ],
+    [
+     14.25,
+     0.4900000000000002
+    ]
+   ],
+   "auto": true,
+   "cx": 24.88,
+   "cy": 11.999999999999998,
+   "area": 489.40520000000004,
+   "id": 33
+  },
+  {
+   "type": "room",
+   "layer": "ROOMS",
+   "name": "ROOM 2",
+   "pts": [
+    [
+     0.49,
+     10.25
+    ],
+    [
+     13.75,
+     10.25
+    ],
+    [
+     13.75,
+     23.51
+    ],
+    [
+     0.4900000000000002,
+     23.51
+    ]
+   ],
+   "auto": true,
+   "cx": 7.119999999999997,
+   "cy": 16.880000000000003,
+   "area": 175.82760000000007,
+   "id": 34
+  },
+  {
+   "type": "room",
+   "layer": "ROOMS",
+   "name": "ROOM 3",
+   "pts": [
+    [
+     0.4900000000000002,
+     9.75
+    ],
+    [
+     0.49,
+     0.4900000000000002
+    ],
+    [
+     13.75,
+     0.49
+    ],
+    [
+     13.75,
+     9.75
+    ]
+   ],
+   "auto": true,
+   "cx": 7.12,
+   "cy": 5.119999999999999,
+   "area": 122.7876,
+   "id": 35
+  },
+  {
+   "type": "text",
+   "layer": "PREXIS-L07",
+   "x": 0,
+   "y": 28,
+   "size": 0.35,
+   "content": "PREXIS L07: place 2 or more doors and 3 or more windows, then a door schedule",
+   "id": 36
+  },
+  {
+   "type": "text",
+   "layer": "PREXIS-L07",
+   "x": 0,
+   "y": 27.4,
+   "size": 0.35,
+   "content": "and a window schedule (SCHEDULE door, SCHEDULE window). This note does not print.",
+   "id": 37
+  },
+  {
+   "type": "insert",
+   "layer": "DOORS",
+   "name": "Door",
+   "def": "door",
+   "x": 23.500000297880742,
+   "y": 0.25,
+   "rot": 0,
+   "width": 3,
+   "swing": "L",
+   "flip": 1,
+   "scale": 1,
+   "th": 0.5,
+   "host": "g1",
+   "t": 0.6971831069825561,
+   "cl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "frags": null,
+   "id": 38,
+   "mark": "D01"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 0.25,
+   "y1": 0.5,
+   "x2": 23.500000297880742,
+   "y2": 0.5,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 39
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 0.25,
+   "y1": 0,
+   "x2": 23.500000297880742,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 40
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 23.500000297880742,
+   "y1": 0.5,
+   "x2": 23.500000297880742,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 41
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 26.500000297880746,
+   "y1": 0.5,
+   "x2": 26.500000297880746,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 42
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 26.500000297880746,
+   "y1": 0.5,
+   "x2": 35.75,
+   "y2": 0.5,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 43
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 26.500000297880746,
+   "y1": 0,
+   "x2": 35.75,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 44
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 0.25,
+   "y1": 0.5,
+   "x2": 0.25,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 45
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 35.75,
+   "y1": 0.5,
+   "x2": 35.75,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1",
+   "id": 46
+  },
+  {
+   "type": "table",
+   "layer": "SCHEDULES",
+   "x": 40,
+   "y": 22,
+   "colW": [
+    3.2,
+    3.5,
+    2.8,
+    4.2
+   ],
+   "rowH": 0.85,
+   "title": "DOOR SCHEDULE",
+   "fromTop": true,
+   "cells": [
+    [
+     "MARK",
+     "WIDTH",
+     "SWING",
+     "WALL"
+    ],
+    [
+     "D01",
+     "3'-0\"",
+     "L",
+     "SOUTH"
+    ]
+   ],
+   "id": 47
+  },
+  {
+   "type": "insert",
+   "layer": "DOORS",
+   "name": "Door",
+   "def": "door",
+   "x": 14,
+   "y": 3.4999987355266424,
+   "rot": 90,
+   "width": 3,
+   "swing": "L",
+   "flip": 1,
+   "scale": 1,
+   "th": 0.5,
+   "host": "g5",
+   "t": 0.20212760576709118,
+   "cl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "frags": null,
+   "id": 48
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 13.75,
+   "y1": 0.25,
+   "x2": 13.75,
+   "y2": 3.4999987355266424,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 49
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 14.25,
+   "y1": 0.25,
+   "x2": 14.25,
+   "y2": 3.4999987355266424,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 50
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 13.75,
+   "y1": 3.4999987355266424,
+   "x2": 14.25,
+   "y2": 3.4999987355266424,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 51
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 13.75,
+   "y1": 6.499998735526643,
+   "x2": 14.25,
+   "y2": 6.499998735526643,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 52
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 13.75,
+   "y1": 6.499998735526643,
+   "x2": 13.75,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 53
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 14.25,
+   "y1": 6.499998735526643,
+   "x2": 14.25,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 54
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 13.75,
+   "y1": 0.25,
+   "x2": 14.25,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 55
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 13.75,
+   "y1": 23.75,
+   "x2": 14.25,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5",
+   "id": 56
+  },
+  {
+   "type": "insert",
+   "layer": "DOORS",
+   "name": "Window",
+   "def": "window",
+   "x": 7.000000024316801,
+   "y": 23.75,
+   "rot": 180,
+   "width": 3,
+   "swing": "L",
+   "flip": 1,
+   "scale": 1,
+   "th": 0.5,
+   "host": "g3",
+   "t": 0.8098591542445972,
+   "cl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "frags": null,
+   "id": 57
+  },
+  {
+   "type": "insert",
+   "layer": "DOORS",
+   "name": "Window",
+   "def": "window",
+   "x": 25.000000297880742,
+   "y": 23.75,
+   "rot": 180,
+   "width": 3,
+   "swing": "L",
+   "flip": 1,
+   "scale": 1,
+   "th": 0.5,
+   "host": "g3",
+   "t": 0.30281689301744386,
+   "cl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "frags": null,
+   "id": 66
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 35.75,
+   "y1": 23.5,
+   "x2": 26.500000297880742,
+   "y2": 23.5,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 67
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 35.75,
+   "y1": 24,
+   "x2": 26.500000297880742,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 68
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 26.500000297880742,
+   "y1": 23.5,
+   "x2": 26.500000297880742,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 69
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 23.500000297880742,
+   "y1": 23.5,
+   "x2": 23.500000297880742,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 70
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 23.500000297880742,
+   "y1": 23.5,
+   "x2": 8.500000024316797,
+   "y2": 23.5,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 71
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 23.500000297880742,
+   "y1": 24,
+   "x2": 8.500000024316797,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 72
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 8.500000024316797,
+   "y1": 23.5,
+   "x2": 8.500000024316797,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 73
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 5.500000024316801,
+   "y1": 23.5,
+   "x2": 5.500000024316801,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 74
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 5.500000024316801,
+   "y1": 23.5,
+   "x2": 0.25,
+   "y2": 23.5,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 75
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 5.500000024316801,
+   "y1": 24,
+   "x2": 0.25,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 76
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 35.75,
+   "y1": 23.5,
+   "x2": 35.75,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 77
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 0.25,
+   "y1": 23.5,
+   "x2": 0.25,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3",
+   "id": 78
+  },
+  {
+   "type": "insert",
+   "layer": "DOORS",
+   "name": "Window",
+   "def": "window",
+   "x": 35.75,
+   "y": 12.000000756860256,
+   "rot": 90,
+   "width": 3,
+   "swing": "L",
+   "flip": 1,
+   "scale": 1,
+   "th": 0.5,
+   "host": "g2",
+   "t": 0.5000000322068194,
+   "cl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "frags": null,
+   "id": 79
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 35.5,
+   "y1": 0.25,
+   "x2": 35.5,
+   "y2": 10.500000756860256,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 80
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 36,
+   "y1": 0.25,
+   "x2": 36,
+   "y2": 10.500000756860256,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 81
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 35.5,
+   "y1": 10.500000756860256,
+   "x2": 36,
+   "y2": 10.500000756860256,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 82
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "jamb",
+   "x1": 35.5,
+   "y1": 13.500000756860256,
+   "x2": 36,
+   "y2": 13.500000756860256,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 83
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 35.5,
+   "y1": 13.500000756860256,
+   "x2": 35.5,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 84
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 36,
+   "y1": 13.500000756860256,
+   "x2": 36,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 85
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 35.5,
+   "y1": 0.25,
+   "x2": 36,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 86
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 35.5,
+   "y1": 23.75,
+   "x2": 36,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2",
+   "id": 87
+  }
+ ],
+ "userBlocks": [],
+ "dimStyles": [
+  {
+   "name": "ARCH",
+   "textHeight": 0.8,
+   "offset": 2,
+   "ext": 0.3,
+   "arrow": "tick",
+   "tickSize": 0.4,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "ARROW",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.45,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "DECIMAL",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.4,
+   "precision": "decimal",
+   "layer": "DIMS",
+   "continueGap": 0
+  }
+ ],
+ "currentDimStyle": "ARCH",
+ "textStyles": [
+  {
+   "name": "STANDARD",
+   "font": "sans",
+   "widthFactor": 1
+  },
+  {
+   "name": "ROMANS",
+   "font": "serif",
+   "widthFactor": 0.9
+  },
+  {
+   "name": "NOTES",
+   "font": "sans",
+   "widthFactor": 0.9,
+   "height": 0.5
+  },
+  {
+   "name": "TITLE",
+   "font": "sans",
+   "widthFactor": 1,
+   "bold": true,
+   "height": 1
+  },
+  {
+   "name": "MONO",
+   "font": "mono",
+   "widthFactor": 1
+  }
+ ],
+ "currentTextStyle": "STANDARD",
+ "plotStyles": [
+  {
+   "name": "ISO",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13
+    },
+    "ROOMS": {
+     "lw": 0.13
+    },
+    "GRID": {
+     "lw": 0.13
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  },
+  {
+   "name": "CHECK",
+   "entries": {},
+   "fallback": {
+    "lw": 0.18,
+    "screen": 100
+   }
+  },
+  {
+   "name": "SCREENED",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "ROOMS": {
+     "lw": 0.13,
+     "screen": 60
+    },
+    "GRID": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  }
+ ],
+ "currentPlotStyle": "ISO",
+ "layerStates": [],
+ "annoPpf": 18,
+ "scripts": [],
+ "materials": {},
+ "sun": null,
+ "views3d": [],
+ "solids": [],
+ "layouts": [
+  {
+   "id": "A1",
+   "name": "A-1 Floor Plan",
+   "sheet": "archd",
+   "ppf": 18,
+   "titleBlock": true,
+   "viewports": [
+    {
+     "px": 0.5,
+     "py": 2.15,
+     "pw": 35,
+     "ph": 21.35,
+     "mx": 0,
+     "my": 0,
+     "ppf": 18,
+     "id": 1,
+     "name": "PLAN",
+     "drawingType": "plan"
+    }
+   ],
+   "sheetNumber": "A-1",
+   "annotations": []
+  }
+ ],
+ "currentLayout": "A1",
+ "space": "model",
+ "constraints": [],
+ "dxfVer": "R12",
+ "units": "ft",
+ "storyHeight": 8,
+ "heightAssumed": true
+}

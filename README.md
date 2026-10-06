@@ -21,6 +21,7 @@ Open http://localhost:8765/. No build step, no account. React, Babel and mathjs 
 - `content.js`: the original curated curriculum (67 lessons, 9 courses)
 - `content_extra.js`: extra tracks (including the web ladder from `extra_web.py`) and course metadata (track, prereq, unlock, blurb), merged into the curriculum at load
 - `build_library.py` + `extra_*.py`: rebuild `content_extra.js` from source
+- `drafting.js`: the Drafting track's bridge to Sovereign Draft: opens a lesson's starter drawing through a share link, reads your .sdraft file or share link back, and checks the drawing data. Plain JavaScript, no dependencies
 - `master.js`: Master levels, endless practice, project briefs and the SM-2 scheduler. Plain JavaScript, no dependencies, runs entirely in the browser
 - `app.patch`, `bootstrap.sh`, `AGENTS.md`: the agent authoring pipeline. `bootstrap.sh` regenerates `app.jsx` from git history plus `app.patch`; you only need it when changing the player through the patch.
 
@@ -97,8 +98,8 @@ All progress, preferences, mastery and the review deck persist locally. Sharing 
 
 ## Step types
 
-`concept` · `worked` · `mcq` · `numeric` · `order` · `output` (predict what code prints, and it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve) · `build` (grow My Site, graded from the rendered page, including measured contrast, sizes and element counts) · `write` (free text practice checked for length, sentence length, required and banned phrases, a real rewrite of the draft, and self checks, with a model answer)
+`concept` · `worked` · `mcq` · `numeric` · `order` · `output` (predict what code prints, and it actually runs) · `code` (write a function, graded by real tests) · `explore` (drag a variable, watch the curve) · `build` (grow My Site, graded from the rendered page, including measured contrast, sizes and element counts) · `write` (free text practice checked for length, sentence length, required and banned phrases, a real rewrite of the draft, and self checks, with a model answer) · `draft` (Drafting track only: draw in Sovereign Draft from the lesson's starter, bring the .sdraft file or share link back, and the drawing data is checked for line types, weights, sizes, scale, sheet, title block and views, and in the cabin lessons for walls, openings, dimensions, room names and areas, schedules, the 3D model, the section cut and the print set; passing drawings are saved to My prints)
 
 ## Agents
 
-`AGENTS.md` documents the authoring pipeline for coding agents. New lessons use existing step types only, JS output/code steps must run in the sandbox, and authored lessons are never replaced with generated filler.
+`AGENTS.md` documents the authoring pipeline for coding agents. New lessons use existing step types only (the `draft` step is the one approved exception, for the Drafting track), JS output/code steps must run in the sandbox, and authored lessons are never replaced with generated filler.
