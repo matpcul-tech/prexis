@@ -16,16 +16,18 @@ const D = require("../drafting.js");
 let fails = 0;
 const ok = (cond, msg) => { console.log((cond ? "ok   " : "FAIL ") + msg); if (!cond) fails++; };
 const course = window.PREXIS_CONTENT.courses.find((c) => c.id === "drafting");
-const lessons = course.units[0].lessons;
+const lessons = [].concat(...course.units.map((u) => u.lessons));
 const draftOf = (L) => L.steps.find((s) => s.type === "draft");
-const KINDS = ["count", "rect", "scale", "sheet", "field", "solid", "views", "confirm"];
+const KINDS = ["count", "rect", "scale", "sheet", "field", "solid", "views", "confirm", "dimLen", "chain", "dimsOutside", "footprint", "schedule", "areaNote", "solidNames", "dormer", "sheet3", "sheetsUnique", "views3d", "cut", "coverIndex", "titleBlock"];
+const ONLY = process.argv[2] ? process.argv[2].split(",") : null;
 
 (async () => {
-  ok(course.track === "drafting" && lessons.length === 4, "Drafting from scratch has 4 lessons on the drafting track");
-  ok((course.soon || []).reduce((n, u) => n + u.lessons.length, 0) === 8, "8 more lessons are listed as coming soon");
+  ok(course.track === "drafting" && lessons.length === 12 && course.units.length === 3, "Drafting from scratch has 12 lessons in 3 units on the drafting track");
+  ok(!(course.soon || []).length, "no lesson is left as coming soon");
 
   for (const [i, L] of lessons.entries()) {
     const n = "L" + (i + 1);
+    if (ONLY && ONLY.indexOf(n) < 0) continue;
     const st = draftOf(L);
     ok(!!st && L.steps[L.steps.length - 1] === st, n + " ends with a draft step");
     const stamp = st.starter.layers.find((x) => x.name === st.stamp);
@@ -50,7 +52,7 @@ const KINDS = ["count", "rect", "scale", "sheet", "field", "solid", "views", "co
     const failed = b.filter((r) => !r.pass);
     ok(failed.length > 0 && failed.every((r) => r.why && r.hint), n + " real drawing done wrong fails, each failure says why and what to try (" + failed.length + " failed)");
 
-    const other = draftOf(lessons[(i + 1) % 4]);
+    const other = draftOf(lessons[(i + 1) % lessons.length]);
     const wrongLesson = D.runChecks(good.drawing, other);
     ok(wrongLesson.length === 1 && !wrongLesson[0].pass, n + " drawing handed to another lesson stops at the stamp check");
   }

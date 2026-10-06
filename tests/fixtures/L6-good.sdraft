@@ -1,0 +1,828 @@
+{
+ "app": "sovereign-draft",
+ "v": 7,
+ "name": "Cabin walls starter",
+ "firm": {
+  "company": "",
+  "copyright": "",
+  "drawnBy": ""
+ },
+ "revisions": [],
+ "idSeq": 27,
+ "gSeq": 6,
+ "layers": [
+  {
+   "name": "WALLS",
+   "color": "#d4a843",
+   "aci": 2,
+   "visible": true
+  },
+  {
+   "name": "DOORS",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "FIXTURES",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true
+  },
+  {
+   "name": "DIMS",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "TEXT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "HATCH",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true
+  },
+  {
+   "name": "CENTER",
+   "color": "#c45a3c",
+   "aci": 1,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "SCHEDULES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "UNDERLAY",
+   "color": "#4a5a73",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "ROOMS",
+   "color": "#4ade80",
+   "aci": 3,
+   "visible": true
+  },
+  {
+   "name": "GRID",
+   "color": "#8fa3c0",
+   "aci": 8,
+   "visible": true,
+   "lt": "CENTER"
+  },
+  {
+   "name": "DEFPOINTS",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  },
+  {
+   "name": "SECTION",
+   "color": "#00d4b8",
+   "aci": 4,
+   "visible": true
+  },
+  {
+   "name": "GDT",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "NOTES",
+   "color": "#e8e4dd",
+   "aci": 7,
+   "visible": true
+  },
+  {
+   "name": "PREXIS-L06",
+   "color": "#6b7c93",
+   "aci": 8,
+   "visible": true,
+   "plot": false
+  }
+ ],
+ "entities": [
+  {
+   "type": "text",
+   "layer": "PREXIS-L06",
+   "x": 0,
+   "y": 27,
+   "size": 0.35,
+   "content": "PREXIS L06: draw the 36'-0\" x 24'-0\" cabin with 6\" walls (WALL), one partition at",
+   "id": 1
+  },
+  {
+   "type": "text",
+   "layer": "PREXIS-L06",
+   "x": 0,
+   "y": 26.4,
+   "size": 0.35,
+   "content": "X 14'-0\", then type ROOMS. This note does not print.",
+   "id": 2
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 35.5,
+   "y1": 0.25,
+   "x2": 35.5,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 36,
+   "y1": 0.25,
+   "x2": 36,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 35.5,
+   "y1": 0.25,
+   "x2": 36,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 35.5,
+   "y1": 23.75,
+   "x2": 36,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g2"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 0.5,
+   "y1": 23.75,
+   "x2": 0.5,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 0,
+   "y1": 23.75,
+   "x2": 0,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 0.5,
+   "y1": 23.75,
+   "x2": 0,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 0.5,
+   "y1": 0.25,
+   "x2": 0,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g4"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 13.75,
+   "y1": 0.25,
+   "x2": 13.75,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 14.25,
+   "y1": 0.25,
+   "x2": 14.25,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 13.75,
+   "y1": 0.25,
+   "x2": 14.25,
+   "y2": 0.25,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 13.75,
+   "y1": 23.75,
+   "x2": 14.25,
+   "y2": 23.75,
+   "ocl": {
+    "x1": 14,
+    "y1": 0.25,
+    "x2": 14,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g5"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 0.25,
+   "y1": 0.5,
+   "x2": 35.75,
+   "y2": 0.5,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 0.25,
+   "y1": 0,
+   "x2": 35.75,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 0.25,
+   "y1": 0.5,
+   "x2": 0.25,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 35.75,
+   "y1": 0.5,
+   "x2": 35.75,
+   "y2": 0,
+   "ocl": {
+    "x1": 0.25,
+    "y1": 0.25,
+    "x2": 35.75,
+    "y2": 0.25,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g1"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "a",
+   "x1": 35.75,
+   "y1": 23.5,
+   "x2": 0.25,
+   "y2": 23.5,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "b",
+   "x1": 35.75,
+   "y1": 24,
+   "x2": 0.25,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap0",
+   "x1": 35.75,
+   "y1": 23.5,
+   "x2": 35.75,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3"
+  },
+  {
+   "type": "line",
+   "layer": "WALLS",
+   "kind": "wall",
+   "th": 0.5,
+   "role": "cap1",
+   "x1": 0.25,
+   "y1": 23.5,
+   "x2": 0.25,
+   "y2": 24,
+   "ocl": {
+    "x1": 35.75,
+    "y1": 23.75,
+    "x2": 0.25,
+    "y2": 23.75,
+    "th": 0.5,
+    "layer": "WALLS"
+   },
+   "g": "g3"
+  },
+  {
+   "type": "room",
+   "layer": "ROOMS",
+   "name": "ROOM 1",
+   "pts": [
+    [
+     35.51,
+     0.49
+    ],
+    [
+     35.51,
+     23.51
+    ],
+    [
+     14.25,
+     23.51
+    ],
+    [
+     14.25,
+     0.48999999999999844
+    ]
+   ],
+   "auto": true,
+   "cx": 24.88,
+   "cy": 11.999999999999998,
+   "area": 489.4052,
+   "id": 25
+  },
+  {
+   "type": "room",
+   "layer": "ROOMS",
+   "name": "ROOM 2",
+   "pts": [
+    [
+     0.4900000000000002,
+     23.51
+    ],
+    [
+     0.49,
+     0.48999999999999844
+    ],
+    [
+     13.75,
+     0.49
+    ],
+    [
+     13.75,
+     23.51
+    ]
+   ],
+   "auto": true,
+   "cx": 7.119999999999999,
+   "cy": 11.999999999999998,
+   "area": 305.24520000000007,
+   "id": 26
+  }
+ ],
+ "userBlocks": [],
+ "dimStyles": [
+  {
+   "name": "ARCH",
+   "textHeight": 0.8,
+   "offset": 2,
+   "ext": 0.3,
+   "arrow": "tick",
+   "tickSize": 0.4,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "ARROW",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.45,
+   "precision": "1/2",
+   "layer": "DIMS",
+   "continueGap": 0
+  },
+  {
+   "name": "DECIMAL",
+   "textHeight": 0.7,
+   "offset": 2,
+   "ext": 0.25,
+   "arrow": "arrow",
+   "tickSize": 0.4,
+   "precision": "decimal",
+   "layer": "DIMS",
+   "continueGap": 0
+  }
+ ],
+ "currentDimStyle": "ARCH",
+ "textStyles": [
+  {
+   "name": "STANDARD",
+   "font": "sans",
+   "widthFactor": 1
+  },
+  {
+   "name": "ROMANS",
+   "font": "serif",
+   "widthFactor": 0.9
+  },
+  {
+   "name": "NOTES",
+   "font": "sans",
+   "widthFactor": 0.9,
+   "height": 0.5
+  },
+  {
+   "name": "TITLE",
+   "font": "sans",
+   "widthFactor": 1,
+   "bold": true,
+   "height": 1
+  },
+  {
+   "name": "MONO",
+   "font": "mono",
+   "widthFactor": 1
+  }
+ ],
+ "currentTextStyle": "STANDARD",
+ "plotStyles": [
+  {
+   "name": "ISO",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13
+    },
+    "ROOMS": {
+     "lw": 0.13
+    },
+    "GRID": {
+     "lw": 0.13
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  },
+  {
+   "name": "CHECK",
+   "entries": {},
+   "fallback": {
+    "lw": 0.18,
+    "screen": 100
+   }
+  },
+  {
+   "name": "SCREENED",
+   "entries": {
+    "0": {
+     "lw": 0.25
+    },
+    "WALLS": {
+     "lw": 0.5
+    },
+    "DOORS": {
+     "lw": 0.35
+    },
+    "FIXTURES": {
+     "lw": 0.25
+    },
+    "DIMS": {
+     "lw": 0.18
+    },
+    "TEXT": {
+     "lw": 0.25
+    },
+    "HATCH": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "CENTER": {
+     "lw": 0.18
+    },
+    "SCHEDULES": {
+     "lw": 0.18
+    },
+    "UNDERLAY": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "ROOMS": {
+     "lw": 0.13,
+     "screen": 60
+    },
+    "GRID": {
+     "lw": 0.13,
+     "screen": 50
+    },
+    "DEFPOINTS": {
+     "lw": 0.13
+    },
+    "SECTION": {
+     "lw": 0.35
+    },
+    "GDT": {
+     "lw": 0.18
+    },
+    "NOTES": {
+     "lw": 0.25
+    }
+   },
+   "fallback": {
+    "lw": 0.25,
+    "screen": 100
+   }
+  }
+ ],
+ "currentPlotStyle": "ISO",
+ "layerStates": [],
+ "annoPpf": 18,
+ "scripts": [],
+ "materials": {},
+ "sun": null,
+ "views3d": [],
+ "solids": [],
+ "layouts": [
+  {
+   "id": "A1",
+   "name": "A-1 Floor Plan",
+   "sheet": "archd",
+   "ppf": 18,
+   "titleBlock": true,
+   "viewports": [
+    {
+     "px": 0.5,
+     "py": 2.15,
+     "pw": 35,
+     "ph": 21.35,
+     "mx": 0,
+     "my": 0,
+     "ppf": 18,
+     "id": 1,
+     "name": "PLAN",
+     "drawingType": "plan"
+    }
+   ],
+   "sheetNumber": "A-1",
+   "annotations": []
+  }
+ ],
+ "currentLayout": "A1",
+ "space": "model",
+ "constraints": [],
+ "dxfVer": "R12",
+ "units": "ft",
+ "storyHeight": 8,
+ "heightAssumed": true
+}

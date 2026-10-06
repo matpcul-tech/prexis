@@ -330,7 +330,7 @@
       if (c.distinct) { var seenK = {}; hitList.forEach(function (e) { seenK[String(e[c.distinct] != null ? e[c.distinct] : "#" + e.id)] = 1; }); n = Object.keys(seenK).length; }
       var lo = c.min == null ? 1 : c.min, hi = c.max == null ? Infinity : c.max;
       r.pass = n >= lo && n <= hi;
-      var what = "Found " + n + (c.noun ? " " + c.noun : "");
+      var what = "Found " + n + (n === 1 && c.noun1 ? " " + c.noun1 : (c.noun ? " " + c.noun : ""));
       r.why = r.pass ? what + "." : (n < lo ? what + ", need " + (hi === lo ? "exactly " : "at least ") + lo + "." : what + (hi === 0 ? ", and there should be none." : ", the most allowed is " + hi + "."));
       return r;
     }
@@ -464,7 +464,7 @@
       var size = {};
       ds.forEach(function (_, k) { var r = find(k); size[r] = (size[r] || 0) + 1; if (size[r] > best) best = size[r]; });
       if (best >= need) return { pass: true, why: "A chain of " + best + " dimensions runs end to end on one line." };
-      return { pass: false, why: ds.length < 2 ? "A chain needs at least two dimensions; found " + ds.length + "." : "No two dimensions continue each other. In a chain, the next dimension starts where the last one ends, on the same line (DCO does this for you)." };
+      return { pass: false, why: ds.length < 2 ? "A chain needs at least two dimensions; found " + ds.length + "." : "No two dimensions continue each other. In a chain, the next dimension starts where the last one ends, on the same line. DCO (or CONT in the Modify row) chains them with taps." };
     },
     /* dimension lines stay outside the walls */
     dimsOutside: function (o, spec, stamp) {
