@@ -187,6 +187,12 @@
       var b = bboxOf([e]), q = f.inBox;
       if (!(b[0] >= q[0] - 1e-6 && b[1] >= q[1] - 1e-6 && b[2] <= q[2] + 1e-6 && b[3] <= q[3] + 1e-6)) return false;
     }
+    if (f.kind) { var ks = [].concat(f.kind); if (ks.indexOf(e.kind) < 0) return false; }
+    if (f.def) { var ds = [].concat(f.def); if (ds.indexOf(e.def) < 0) return false; }
+    if (f.th) { var th = num(e.th); if (th < f.th[0] - 1e-6 || th > f.th[1] + 1e-6) return false; }
+    if (f.name) { if (!new RegExp(f.name, "i").test(String(e.name || ""))) return false; }
+    if (f.nameNot) { if (new RegExp(f.nameNot, "i").test(String(e.name || ""))) return false; }
+    if (f.title) { if (!new RegExp(f.title, "i").test(String(e.title || ""))) return false; }
     if (f.text) { if (!new RegExp(f.text, "i").test(textOf(e))) return false; }
     if (f.minWords) { if (textOf(e).trim().split(/\s+/).filter(Boolean).length < f.minWords) return false; }
     return true;
@@ -318,7 +324,10 @@
     var r = { label: c.label, hint: c.hint || "", pass: false, why: "" };
     if (c.confirm) { r.pass = !!self; r.self = true; return r; }
     if (c.count) {
-      var n = ents.filter(function (e) { return matches(e, c.count, stamp); }).length;
+      var hitList = ents.filter(function (e) { return matches(e, c.count, stamp); });
+      var n = hitList.length;
+      /* distinct: count walls, not the face lines a wall is drawn with */
+      if (c.distinct) { var seenK = {}; hitList.forEach(function (e) { seenK[String(e[c.distinct] != null ? e[c.distinct] : "#" + e.id)] = 1; }); n = Object.keys(seenK).length; }
       var lo = c.min == null ? 1 : c.min, hi = c.max == null ? Infinity : c.max;
       r.pass = n >= lo && n <= hi;
       var what = "Found " + n + (c.noun ? " " + c.noun : "");
@@ -375,9 +384,208 @@
       return r;
     }
     if (c.views) { var cv = checkViews(o, c.views, stamp); r.pass = cv.pass; r.why = cv.why; return r; }
+    var plan = PLAN_CHECKS.filter(function (k) { return c[k] != null; })[0];
+    if (plan) { var pr = planCheck[plan](o, c[plan], stamp); r.pass = pr.pass; r.why = pr.why; return r; }
     r.why = "Unknown check.";
     return r;
   }
+
+  /* ---------- plan checks (lessons 5 to 12) ---------- */
+
+  function dimsOf(o, stamp) {
+    return (o.entities || []).filter(function (e) { return e.type === "dim" && e.kind !== "angular" && e.kind !== "radius" && e.kind !== "diameter" && !(stamp && e.layer === stamp); });
+  }
+  function dimLen(d) { return Math.hypot(num(d.x2) - num(d.x1), num(d.y2) - num(d.y1)); }
+  /* The dimension line: the measured points pushed out by the offset, the
+     same geometry Sovereign Draft draws (normal is the direction turned
+     a quarter turn counterclockwise). */
+  function dimLine(d) {
+    var dx = num(d.x2) - num(d.x1), dy = num(d.y2) - num(d.y1), L = Math.hypot(dx, dy) || 1e-4;
+    var nx = -dy / L, ny = dx / L, off = num(d.off);
+    return [[num(d.x1) + nx * off, num(d.y1) + ny * off], [num(d.x2) + nx * off, num(d.y2) + ny * off]];
+  }
+  function wallsOf(o, stamp) {
+    return (o.entities || []).filter(function (e) { return e.type === "line" && e.kind === "wall" && !(stamp && e.layer === stamp); });
+  }
+  function wallBox(o, stamp) { return bboxOf(wallsOf(o, stamp)); }
+  function listFt(vals) {
+    var u = [];
+    vals.forEach(function (v) { var t = fmtFt(v); if (u.indexOf(t) < 0) u.push(t); });
+    return u.slice(0, 8).join(", ");
+  }
+  function sheetLabel(L) { return String((L && (L.name || L.sheetNumber)) || "a sheet"); }
+  function sheetMatches(L, rx) {
+    var t = [L.name, L.sheetNumber, L.kind].concat((L.viewports || []).map(function (v) { return v.name; })).join(" ");
+    return rx.test(t);
+  }
+  /* Vertical faces of a mesh that stand clear of its outer edges: a dormer
+     front or cheek. A gable end sits on the edge, so it does not count. */
+  function dormerFaces(s) {
+    var v = s.verts || [], lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    v.forEach(function (p) { for (var i = 0; i < 3; i++) { if (p[i] < lo[i]) lo[i] = p[i]; if (p[i] > hi[i]) hi[i] = p[i]; } });
+    var n = 0;
+    (s.faces || []).forEach(function (f) {
+      var a = v[f[0]], b = v[f[1]], c = v[f[2]];
+      if (!a || !b || !c) return;
+      var ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
+      var nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx, nl = Math.hypot(nx, ny, nz);
+      if (nl < 1e-9 || Math.abs(nz / nl) > 0.05) return;
+      var zs = [a[2], b[2], c[2]], span = Math.max.apply(null, zs) - Math.min.apply(null, zs);
+      if (span < 1) return;
+      if (Math.abs(nx) >= Math.abs(ny)) { var x = (a[0] + b[0] + c[0]) / 3; if (x > lo[0] + 1 && x < hi[0] - 1) n++; }
+      else { var y = (a[1] + b[1] + c[1]) / 3; if (y > lo[1] + 1 && y < hi[1] - 1) n++; }
+    });
+    return n;
+  }
+
+  var PLAN_CHECKS = ["dimLen", "chain", "dimsOutside", "footprint", "schedule", "areaNote", "solidNames", "dormer", "sheet3", "sheetsUnique", "views3d", "cut", "coverIndex", "titleBlock"];
+  var planCheck = {
+    /* a dimension that reads this length, either direction */
+    dimLen: function (o, spec, stamp) {
+      var ds = dimsOf(o, stamp), tol = spec.tol == null ? 0.042 : spec.tol;
+      var hit = ds.filter(function (d) { return Math.abs(dimLen(d) - spec.len) <= tol; });
+      if (hit.length) return { pass: true, why: "A dimension reads " + fmtFt(dimLen(hit[0])) + "." };
+      return { pass: false, why: ds.length ? "Your dimensions read " + listFt(ds.map(dimLen)) + ". None reads " + fmtFt(spec.len) + "." : "No dimensions in the drawing yet." };
+    },
+    /* dimensions that continue each other on one dimension line */
+    chain: function (o, spec, stamp) {
+      var ds = dimsOf(o, stamp), need = spec.min || 2, tol = 0.05, best = 1;
+      var near = function (p, q) { return Math.abs(p[0] - q[0]) <= tol && Math.abs(p[1] - q[1]) <= tol; };
+      var link = function (a, b) {
+        var la = dimLine(a), lb = dimLine(b);
+        var ua = [la[1][0] - la[0][0], la[1][1] - la[0][1]], ub = [lb[1][0] - lb[0][0], lb[1][1] - lb[0][1]];
+        var cr = ua[0] * ub[1] - ua[1] * ub[0];
+        if (Math.abs(cr) > 0.01 * Math.hypot(ua[0], ua[1]) * Math.hypot(ub[0], ub[1])) return false;
+        return near(la[0], lb[0]) || near(la[0], lb[1]) || near(la[1], lb[0]) || near(la[1], lb[1]);
+      };
+      var parent = ds.map(function (_, i) { return i; });
+      var find = function (i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+      for (var i = 0; i < ds.length; i++) for (var j = i + 1; j < ds.length; j++) if (link(ds[i], ds[j])) parent[find(i)] = find(j);
+      var size = {};
+      ds.forEach(function (_, k) { var r = find(k); size[r] = (size[r] || 0) + 1; if (size[r] > best) best = size[r]; });
+      if (best >= need) return { pass: true, why: "A chain of " + best + " dimensions runs end to end on one line." };
+      return { pass: false, why: ds.length < 2 ? "A chain needs at least two dimensions; found " + ds.length + "." : "No two dimensions continue each other. In a chain, the next dimension starts where the last one ends, on the same line (DCO does this for you)." };
+    },
+    /* dimension lines stay outside the walls */
+    dimsOutside: function (o, spec, stamp) {
+      var b = wallBox(o, stamp), ds = dimsOf(o, stamp);
+      if (!isFinite(b[0])) return { pass: false, why: "No walls in the drawing to measure from." };
+      if (!ds.length) return { pass: false, why: "No dimensions in the drawing yet." };
+      var m = 0.1;
+      var inside = ds.filter(function (d) {
+        var L = dimLine(d), mx = (L[0][0] + L[1][0]) / 2, my = (L[0][1] + L[1][1]) / 2;
+        return mx > b[0] + m && mx < b[2] - m && my > b[1] + m && my < b[3] - m;
+      });
+      if (!inside.length) return { pass: true, why: "All " + ds.length + " dimension lines sit outside the walls." };
+      return { pass: false, why: inside.length + " dimension line" + (inside.length === 1 ? " runs" : "s run") + " inside the room, reading " + listFt(inside.map(dimLen)) + ". Select it and tap Flip to move it outside." };
+    },
+    /* the walls' outside faces, or their centerlines, make this rectangle */
+    footprint: function (o, spec, stamp) {
+      var ws = wallsOf(o, stamp), tol = spec.tol == null ? 0.084 : spec.tol;
+      if (!ws.length) return { pass: false, why: "No walls yet. Use the WALL tool; plain lines and rectangles are not walls." };
+      var face = bboxOf(ws);
+      var cl = bboxOf(ws.map(function (e) { return e.ocl ? { type: "line", x1: e.ocl.x1, y1: e.ocl.y1, x2: e.ocl.x2, y2: e.ocl.y2 } : e; }));
+      var fits = function (b) {
+        var w = b[2] - b[0], h = b[3] - b[1];
+        return (Math.abs(w - spec.w) <= tol && Math.abs(h - spec.h) <= tol) || (Math.abs(w - spec.h) <= tol && Math.abs(h - spec.w) <= tol);
+      };
+      if (fits(face)) return { pass: true, why: "Outside faces of the walls: " + fmtFt(face[2] - face[0]) + " x " + fmtFt(face[3] - face[1]) + "." };
+      if (fits(cl)) return { pass: true, why: "Wall centerlines: " + fmtFt(cl[2] - cl[0]) + " x " + fmtFt(cl[3] - cl[1]) + "." };
+      return { pass: false, why: "The walls measure " + fmtFt(face[2] - face[0]) + " x " + fmtFt(face[3] - face[1]) + " outside; the cabin is " + fmtFt(spec.w) + " x " + fmtFt(spec.h) + "." };
+    },
+    /* a schedule table that lists every door (or window) in the plan */
+    schedule: function (o, spec, stamp) {
+      var ents = (o.entities || []).filter(function (e) { return !(stamp && e.layer === stamp); });
+      var have = ents.filter(function (e) { return e.type === "insert" && e.def === spec.def; }).length;
+      var tables = ents.filter(function (e) { return e.type === "table" && new RegExp(spec.title, "i").test(String(e.title || "")); });
+      var noun = spec.def + (have === 1 ? "" : "s");
+      if (!tables.length) return { pass: false, why: "No " + spec.def + " schedule table yet." };
+      var rows = Math.max.apply(null, tables.map(function (t) { return Math.max(0, (t.cells || []).length - 1); }));
+      if (have && rows >= have) return { pass: true, why: "The " + spec.def + " schedule lists " + rows + " for " + have + " " + noun + " in the plan." };
+      if (!have) return { pass: false, why: "There is a " + spec.def + " schedule, but no " + noun + " in the plan to list." };
+      return { pass: false, why: "The " + spec.def + " schedule lists " + rows + ", but the plan has " + have + " " + noun + ". A schedule is a snapshot: erase it and place it again after the last " + spec.def + "." };
+    },
+    /* a text that states the total area in square feet, in range */
+    areaNote: function (o, spec, stamp) {
+      var found = [];
+      (o.entities || []).forEach(function (e) {
+        if ((e.type !== "text" && e.type !== "mtext") || (stamp && e.layer === stamp)) return;
+        var m = textOf(e).replace(/,/g, "").match(/(\d+(?:\.\d+)?)\s*(?:SF|SQ\.?\s*FT|S\.F\.|SQUARE FEET)/i);
+        if (m) found.push(Number(m[1]));
+      });
+      var ok = found.filter(function (v) { return v >= spec.min && v <= spec.max; });
+      if (ok.length) return { pass: true, why: "Total area noted: " + ok[0] + " SF." };
+      if (found.length) return { pass: false, why: "Area notes found: " + found.join(", ") + " SF. The cabin's total is between " + spec.min + " and " + spec.max + " SF (inside the walls or out)." };
+      return { pass: false, why: "No text gives an area in SF yet, for example TOTAL 788 SF." };
+    },
+    solidNames: function (o, spec) {
+      var names = (o.solids || []).map(function (s) { return String(s.name || "").toUpperCase(); });
+      var miss = spec.filter(function (n) { return !names.some(function (x) { return x.indexOf(n) === 0; }); });
+      if (!miss.length) return { pass: true, why: "Solids: " + names.join(", ") + "." };
+      return { pass: false, why: (names.length ? "Solids now: " + names.join(", ") + ". " : "No 3D solids yet. ") + "Missing: " + miss.join(", ") + "." };
+    },
+    dormer: function (o) {
+      var roof = (o.solids || []).filter(function (s) { return /^ROOF/i.test(String(s.name || "")); })[0];
+      if (!roof) return { pass: false, why: "No ROOF solid yet, so there is nothing to put a dormer on." };
+      var n = dormerFaces(roof);
+      if (n) return { pass: true, why: "The roof has a dormer standing up out of the slope." };
+      return { pass: false, why: "The roof has no dormer yet. DORMER x y seats one at a point on the slope." };
+    },
+    /* a sheet whose name, number or view names match */
+    sheet3: function (o, spec) {
+      var rx = new RegExp(spec.match, "i"), Ls = o.layouts || [];
+      var hit = Ls.filter(function (L) { return sheetMatches(L, rx); });
+      if (hit.length >= (spec.min || 1)) return { pass: true, why: "Found " + hit.map(sheetLabel).slice(0, 4).join(", ") + (hit.length > 4 ? " and " + (hit.length - 4) + " more" : "") + "." };
+      return { pass: false, why: Ls.length ? "Sheets now: " + Ls.map(function (L) { return L.sheetNumber || L.name; }).join(", ") + ". None is " + spec.what + "." : "This drawing has no sheets yet." };
+    },
+    sheetsUnique: function (o, spec) {
+      var Ls = o.layouts || [], nums = Ls.map(function (L) { return String(L.sheetNumber || L.name || ""); });
+      var dup = nums.filter(function (n, i) { return nums.indexOf(n) !== i; });
+      if (Ls.length < spec.min) return { pass: false, why: "The set has " + Ls.length + " sheet" + (Ls.length === 1 ? "" : "s") + ": " + (nums.join(", ") || "none") + ". A full set here is at least " + spec.min + "." };
+      if (dup.length) return { pass: false, why: "Two sheets share the number " + dup[0] + ". Every sheet needs its own number." };
+      return { pass: true, why: Ls.length + " sheets, every number different: " + nums.join(", ") + "." };
+    },
+    views3d: function (o, spec) {
+      var v = o.views3d || [];
+      if (v.length >= (spec.min || 1)) return { pass: true, why: "Saved view" + (v.length === 1 ? "" : "s") + ": " + v.map(function (x) { return x.name; }).join(", ") + "." };
+      return { pass: false, why: "No saved 3D views yet. Open 3D, frame the cabin, then type VIEW SAVE and a name." };
+    },
+    /* a cutting plane that crosses the whole building */
+    cut: function (o, spec, stamp) {
+      var b = wallBox(o, stamp);
+      var cps = (o.entities || []).filter(function (e) { return e.type === "cutplane"; });
+      if (!cps.length) return { pass: false, why: "No section cut yet. Type SE and pick two points on either side of the cabin." };
+      if (!isFinite(b[0])) return { pass: true, why: "Found " + cps.length + " cutting plane" + (cps.length === 1 ? "" : "s") + "." };
+      var out = function (x, y) { return x < b[0] || x > b[2] || y < b[1] || y > b[3]; };
+      var through = cps.filter(function (e) {
+        var x1 = num(e.x1), y1 = num(e.y1), x2 = num(e.x2), y2 = num(e.y2);
+        if (!out(x1, y1) || !out(x2, y2)) return false;
+        var horiz = Math.abs(y2 - y1) <= Math.abs(x2 - x1);
+        if (horiz) { var ym = (y1 + y2) / 2; return Math.min(x1, x2) < b[0] && Math.max(x1, x2) > b[2] && ym > b[1] && ym < b[3]; }
+        var xm = (x1 + x2) / 2; return Math.min(y1, y2) < b[1] && Math.max(y1, y2) > b[3] && xm > b[0] && xm < b[2];
+      });
+      if (through.length) return { pass: true, why: "Section " + (through[0].tag || "A") + " cuts all the way across the cabin." };
+      return { pass: false, why: "The cut line does not cross the whole cabin. Start it outside one wall and end it outside the opposite wall." };
+    },
+    /* the cover's drawing index lists every sheet in the set */
+    coverIndex: function (o) {
+      var Ls = o.layouts || [];
+      var cover = Ls.filter(function (L) { return L.kind === "cover" || /^G-/i.test(String(L.sheetNumber || "")); })[0];
+      if (!cover) return { pass: false, why: "No cover sheet (G-001) yet. Menu, Sheet set, Generate sheet set makes one." };
+      var idx = (cover.annotations || []).map(function (a) { return a && a.table; }).filter(function (t) { return t && /INDEX/i.test(String(t.title || "")); })[0];
+      if (!idx) return { pass: false, why: "The cover has no drawing index table." };
+      var listed = (idx.cells || []).slice(1).map(function (r) { return String(r[0] || ""); });
+      var miss = Ls.map(function (L) { return String(L.sheetNumber || ""); }).filter(function (n) { return n && listed.indexOf(n) < 0; });
+      if (!miss.length) return { pass: true, why: "The index on " + (cover.sheetNumber || "the cover") + " lists all " + Ls.length + " sheets." };
+      return { pass: false, why: "The cover's index leaves out " + miss.join(", ") + ". Run DRAWINGS SHEETS after Generate sheet set, so the index is rewritten with every sheet." };
+    },
+    titleBlock: function (o) {
+      var Ls = o.layouts || [], off = Ls.filter(function (L) { return L.titleBlock === false; });
+      if (!Ls.length) return { pass: false, why: "This drawing has no sheets yet." };
+      if (!off.length) return { pass: true, why: "Every sheet has its title block." };
+      return { pass: false, why: off.map(sheetLabel).join(", ") + (off.length === 1 ? " has" : " have") + " the title block turned off." };
+    }
+  };
 
   function scaleName(ppf) {
     var m = { 864: "1:1", 432: "6\" = 1'-0\"", 72: "1\" = 1'-0\"", 54: "3/4\" = 1'-0\"", 36: "1/2\" = 1'-0\"", 27: "3/8\" = 1'-0\"", 18: "1/4\" = 1'-0\"", 13.5: "3/16\" = 1'-0\"", 9: "1/8\" = 1'-0\"", 6.75: "3/32\" = 1'-0\"", 4.5: "1/16\" = 1'-0\"" };
@@ -405,6 +613,7 @@
       entities: ents.length,
       lines: ents.filter(function (e) { return e.type === "line" || e.type === "poly"; }).length,
       text: ents.filter(function (e) { return e.type === "text" || e.type === "mtext"; }).length,
+      rooms: ents.filter(function (e) { return e.type === "room"; }).length,
       sheets: (o.layouts || []).length,
       solids: (o.solids || []).length,
       name: String(o.name || "Untitled")
@@ -412,6 +621,15 @@
   }
 
   /* ---------- preview ---------- */
+
+  function inPoly(x, y, pts) {
+    var inside = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var xi = num(pts[i][0]), yi = num(pts[i][1]), xj = num(pts[j][0]), yj = num(pts[j][1]);
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi || 1e-12) + xi) inside = !inside;
+    }
+    return inside;
+  }
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
@@ -421,7 +639,14 @@
 
   function previewSVG(o, stampLayer) {
     var hide = (o.layers || []).filter(function (L) { return L && (L.visible === false || L.plot === false); }).map(function (L) { return L.name; });
-    var ents = (o.entities || []).filter(function (e) { return e && hide.indexOf(e.layer) < 0 && e.layer !== stampLayer && ["line", "poly", "circle", "arc", "ellipse", "text", "mtext", "dim", "hatch"].indexOf(e.type) >= 0; });
+    var ents = (o.entities || []).filter(function (e) { return e && hide.indexOf(e.layer) < 0 && e.layer !== stampLayer && ["line", "poly", "circle", "arc", "ellipse", "text", "mtext", "dim", "hatch", "room"].indexOf(e.type) >= 0; });
+    /* a room already labelled by a text inside it shows just its area */
+    var roomTags = {};
+    ents.forEach(function (e, k) {
+      if (e.type !== "room") return;
+      var nm = String(e.name || "").trim().toUpperCase();
+      if (ents.some(function (t) { return t.type === "text" && textOf(t).trim().toUpperCase() === nm && inPoly(num(t.x), num(t.y), e.pts || []); })) roomTags[e.id != null ? e.id : k] = 1;
+    });
     /* Frame the geometry and the lettering near it (titles, notes). Text
        far from the drawing would shrink it to a dot, so if the lettering
        more than doubles the frame either way, frame the geometry alone. */
@@ -459,6 +684,11 @@
         parts.push('<ellipse cx="' + f(e.cx) + '" cy="' + Y(e.cy) + '" rx="' + f(Math.abs(num(e.rx))) + '" ry="' + f(Math.abs(num(e.ry))) + '"' + st + "/>");
       } else if (e.type === "arc") {
         parts.push('<polyline points="' + ptsOf(e).map(function (p) { return f(p[0]) + "," + Y(p[1]); }).join(" ") + '"' + st + "/>");
+      } else if (e.type === "room") {
+        var rs = Math.max(w, h) / 70;
+        var tag = roomTags[e.id != null ? e.id : ents.indexOf(e)];
+        var rl = (tag ? "" : String(e.name || "ROOM") + " ") + Math.round(num(e.area)) + " SF";
+        parts.push('<text x="' + f(num(e.cx)) + '" y="' + Y(num(e.cy)) + '" font-size="' + f(rs) + '" text-anchor="middle" fill="currentColor" opacity="0.7" font-family="ui-monospace, monospace">' + esc(rl.slice(0, 40)) + "</text>");
       } else if (e.type === "text" || e.type === "mtext") {
         var size = Math.max(num(e.size) || num(e.h) || 0.5, 0.2);
         var lines = textOf(e).split(/\n|\\P/).slice(0, 6);
